@@ -25,11 +25,15 @@ dist/
 !.env.example
 
 # Results — committed selectively, raw runs ignored
+# (per-dim state-dirs, summary JSONs, nested sqlite checkpoints)
 results/runs/
-results/*.json
-results/*.sqlite
+results/dim*/
+results/**/*.json
+results/**/*.sqlite
 !results/.gitkeep
 !results/README.md
+# The rendered matrix is THE committed artifact:
+!results/eval-matrix.md
 
 # Implementation-local state
 implementations/*/state/
