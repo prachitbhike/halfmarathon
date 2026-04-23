@@ -55,3 +55,4 @@ implementations/*/postgres-data/
 
 # Local Claude Code settings (per-machine)
 .claude/
+results-claude-sdk/

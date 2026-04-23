@@ -267,7 +267,7 @@ def _maybe_draft(
     published_weeks: list[str],
 ) -> dict | None:
     """If due, draft a weekly digest. Returns pending dict or None."""
-    if now_ts.weekday() not in (0, 6):
+    if now_ts.weekday() != 0:  # Monday-only draft trigger (ISO week alignment)
         return None
     week_start = (now_ts - timedelta(days=7)).replace(
         hour=0, minute=0, second=0, microsecond=0

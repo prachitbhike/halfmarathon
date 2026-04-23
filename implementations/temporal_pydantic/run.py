@@ -47,6 +47,10 @@ from temporalio.common import WorkflowIDReusePolicy
 from temporalio.contrib.pydantic import pydantic_data_converter
 from temporalio.testing import WorkflowEnvironment
 from temporalio.worker import Worker
+from temporalio.worker.workflow_sandbox import (
+    SandboxedWorkflowRunner,
+    SandboxRestrictions,
+)
 
 from implementations.temporal_pydantic.activities import ALL_ACTIVITIES
 from implementations.temporal_pydantic.workflow import (
@@ -160,11 +164,19 @@ async def run_loop(
     # Worker is short-lived: it lives only for the duration of this call,
     # registering against the shared cluster. Starting/stopping a worker
     # is cheap, unlike starting the Temporal server.
+    #
+    # `beartype` is a transitive dep (langchain-ecosystem) whose import-time
+    # claw machinery breaks Temporal's workflow sandbox validation. It's
+    # safe to pass through — we never mutate state via beartype.
+    sandbox = SandboxedWorkflowRunner(
+        restrictions=SandboxRestrictions.default.with_passthrough_modules("beartype"),
+    )
     worker = Worker(
         client,
         task_queue=TASK_QUEUE,
         workflows=[ReleaseRadarWorkflow],
         activities=ALL_ACTIVITIES,
+        workflow_runner=sandbox,
     )
 
     async with worker:

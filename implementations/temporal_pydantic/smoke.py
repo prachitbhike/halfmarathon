@@ -36,7 +36,7 @@ def _expected_week_ids(start: datetime, until: datetime) -> list[str]:
     out: list[str] = []
     d = start
     while d < until:
-        if d.weekday() == 6:
+        if d.weekday() == 0:  # Monday-only draft trigger
             week_start = (d - timedelta(days=7)).replace(
                 hour=0, minute=0, second=0, microsecond=0
             )

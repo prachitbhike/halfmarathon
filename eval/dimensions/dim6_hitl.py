@@ -58,10 +58,10 @@ async def run(  # noqa: PLR0911
     base.mkdir(parents=True, exist_ok=True)
 
     fixture_start = DEFAULT_FIXTURE_START
-    # Wed -> Wed (covers first Sunday Apr 5)
+    # Wed -> Wed (covers first Monday Apr 6, the Monday-only draft trigger)
     fixture_after_sunday = DEFAULT_FIXTURE_START + timedelta(days=7)
     fixture_until = DEFAULT_FIXTURE_START + timedelta(days=15)
-    speed = 86400.0
+    speed = float(os.environ.get("HALFMARATHON_DIM_SPEED", "86400"))
 
     # Plan: only test the FIRST week's digest. We pre-approve the second
     # week so the second resume run completes cleanly without polling forever.
