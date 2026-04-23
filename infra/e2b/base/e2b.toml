@@ -1,0 +1,10 @@
+# e2b sandbox template — halfmarathon base image
+# Shared by all four implementations.
+
+template_id     = "halfmarathon-base"
+template_name   = "halfmarathon-base"
+dockerfile      = "Dockerfile"
+start_cmd       = "/bin/bash"
+team_id         = ""  # set per-account before `e2b template build`
+cpu_count       = 2
+memory_mb       = 4096

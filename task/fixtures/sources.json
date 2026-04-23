@@ -1,0 +1,58 @@
+[
+  {
+    "id": "anthropic-blog",
+    "type": "rss",
+    "url": "https://www.anthropic.com/news/rss.xml",
+    "name": "Anthropic News",
+    "topics": ["llm", "anthropic", "claude", "research"]
+  },
+  {
+    "id": "openai-blog",
+    "type": "rss",
+    "url": "https://openai.com/blog/rss.xml",
+    "name": "OpenAI Blog",
+    "topics": ["llm", "openai", "research"]
+  },
+  {
+    "id": "langchain-blog",
+    "type": "rss",
+    "url": "https://blog.langchain.com/rss",
+    "name": "LangChain Blog",
+    "topics": ["langchain", "langgraph", "agents", "framework"]
+  },
+  {
+    "id": "simonw-blog",
+    "type": "rss",
+    "url": "https://simonwillison.net/atom/everything/",
+    "name": "Simon Willison's Weblog",
+    "topics": ["llm", "agents", "tooling", "commentary"]
+  },
+  {
+    "id": "temporal-blog",
+    "type": "rss",
+    "url": "https://temporal.io/blog/rss.xml",
+    "name": "Temporal Blog",
+    "topics": ["temporal", "durable-execution", "workflows"]
+  },
+  {
+    "id": "letta-releases",
+    "type": "github_releases",
+    "url": "https://github.com/letta-ai/letta/releases.atom",
+    "name": "Letta GitHub Releases",
+    "topics": ["letta", "memory", "agents", "framework"]
+  },
+  {
+    "id": "pydantic-ai-releases",
+    "type": "github_releases",
+    "url": "https://github.com/pydantic/pydantic-ai/releases.atom",
+    "name": "Pydantic AI Releases",
+    "topics": ["pydantic", "agents", "framework"]
+  },
+  {
+    "id": "langgraph-releases",
+    "type": "github_releases",
+    "url": "https://github.com/langchain-ai/langgraph/releases.atom",
+    "name": "LangGraph Releases",
+    "topics": ["langgraph", "agents", "framework"]
+  }
+]

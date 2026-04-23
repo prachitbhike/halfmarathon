@@ -1,0 +1,7 @@
+template_id     = "halfmarathon-letta"
+template_name   = "halfmarathon-letta"
+dockerfile      = "Dockerfile"
+start_cmd       = "/workspace/infra/e2b/letta/start.sh"
+team_id         = ""
+cpu_count       = 2
+memory_mb       = 6144

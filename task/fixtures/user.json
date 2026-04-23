@@ -1,0 +1,14 @@
+{
+  "user_id": "demo",
+  "interests": [
+    "long-running AI agents (days/weeks)",
+    "agent frameworks: LangGraph, Letta, Pydantic AI, Claude Agent SDK",
+    "durable execution: Temporal, DBOS, Restate",
+    "agent memory architectures (working / episodic / semantic / procedural)",
+    "context engineering and compaction for long-horizon agents",
+    "multi-agent harnesses (planner / generator / evaluator)",
+    "Anthropic engineering and research"
+  ],
+  "tone": "concise, technical, no marketing language",
+  "max_items_per_digest": 8
+}

@@ -1,0 +1,402 @@
+[
+  {
+    "id": "evt_0001",
+    "source_id": "anthropic-blog",
+    "fixture_timestamp": "2026-04-01T14:30:00Z",
+    "kind": "post",
+    "title": "Effective harnesses for long-running agents",
+    "url": "https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents",
+    "body_md": "Compaction alone is not enough. We describe an initializer + coding-agent split, with a portable `progress.md` and a strict feature-list JSON, that let Claude Code run productively for days on a single task. Sub-agents take ownership of fresh windows; the lead agent never sees raw artifacts.",
+    "metadata": {"author": "Anthropic Engineering", "tags": ["agents", "long-running", "harness"]}
+  },
+  {
+    "id": "evt_0002",
+    "source_id": "simonw-blog",
+    "fixture_timestamp": "2026-04-01T17:15:00Z",
+    "kind": "post",
+    "title": "Notes on Anthropic's harness paper",
+    "url": "https://simonwillison.net/2026/Apr/01/anthropic-harness/",
+    "body_md": "Anthropic's new piece on long-running agents is the clearest articulation yet of why a single Claude loop with infinite context is the wrong abstraction. The interesting bit isn't the file-as-memory pattern — it's the strict feature-list scaffold preventing premature 'done.'",
+    "metadata": {"tags": ["agents", "anthropic", "commentary"]}
+  },
+  {
+    "id": "evt_0003",
+    "source_id": "openai-blog",
+    "fixture_timestamp": "2026-04-02T09:00:00Z",
+    "kind": "post",
+    "title": "Sora 3 video generation now available in the API",
+    "url": "https://openai.com/blog/sora-3-api",
+    "body_md": "Sora 3 lands in the OpenAI API today with longer clips, multi-shot composition, and a new safety classifier. Available for Tier-3+ accounts.",
+    "metadata": {"tags": ["sora", "video", "api"]}
+  },
+  {
+    "id": "evt_0004",
+    "source_id": "letta-releases",
+    "fixture_timestamp": "2026-04-02T11:42:00Z",
+    "kind": "release",
+    "title": "letta v1.4.0 — MemFS GA",
+    "url": "https://github.com/letta-ai/letta/releases/tag/v1.4.0",
+    "body_md": "MemFS — agent memory projected as git-backed files manipulated through generic computer-use tools — graduates from preview to GA. Replaces bespoke memory_block tools for new agents; existing agents can opt in via `migrate-memfs`.",
+    "metadata": {"version": "1.4.0", "breaking": false}
+  },
+  {
+    "id": "evt_0005",
+    "source_id": "langchain-blog",
+    "fixture_timestamp": "2026-04-02T15:20:00Z",
+    "kind": "post",
+    "title": "LangGraph 1.2: durable interrupts and per-node checkpointing modes",
+    "url": "https://blog.langchain.com/langgraph-1-2/",
+    "body_md": "1.2 ships per-node checkpoint modes (sync / async / exit / never), so cheap nodes don't pay for storage they don't need. Durable interrupts let you `interrupt()` anywhere, including inside a tool call, with full state hydration on resume.",
+    "metadata": {"version": "1.2.0"}
+  },
+  {
+    "id": "evt_0006",
+    "source_id": "anthropic-blog",
+    "fixture_timestamp": "2026-04-03T16:00:00Z",
+    "kind": "post",
+    "title": "Claude Code now ships in JetBrains as a native IDE integration",
+    "url": "https://www.anthropic.com/news/claude-code-jetbrains",
+    "body_md": "Native plugin for IntelliJ, PyCharm, GoLand, and Rider. All Claude Code features available, no terminal required.",
+    "metadata": {"tags": ["product", "claude-code", "ide"]}
+  },
+  {
+    "id": "evt_0007",
+    "source_id": "temporal-blog",
+    "fixture_timestamp": "2026-04-03T18:30:00Z",
+    "kind": "post",
+    "title": "OpenAI Agents SDK on Temporal: tracing, replay, and zero-token retries",
+    "url": "https://temporal.io/blog/openai-agents-sdk-deep-dive",
+    "body_md": "A walkthrough of the GA `OpenAIAgentsPlugin`. Each LLM call becomes a recorded Activity; on retry the cached response is replayed from history at zero token cost. Includes a debugger workflow showing how to time-travel an agent run.",
+    "metadata": {"tags": ["temporal", "openai", "agents"]}
+  },
+  {
+    "id": "evt_0008",
+    "source_id": "pydantic-ai-releases",
+    "fixture_timestamp": "2026-04-04T10:05:00Z",
+    "kind": "release",
+    "title": "pydantic-ai 1.86 — Restate executor + improved Temporal plugin",
+    "url": "https://github.com/pydantic/pydantic-ai/releases/tag/v1.86.0",
+    "body_md": "New `pydantic_ai.durable_exec.restate` executor (parity with the existing Temporal/DBOS/Prefect plugins). Streaming now works correctly inside all four durable wrappers. Type narrowing on tool outputs improved.",
+    "metadata": {"version": "1.86.0"}
+  },
+  {
+    "id": "evt_0009",
+    "source_id": "openai-blog",
+    "fixture_timestamp": "2026-04-04T13:45:00Z",
+    "kind": "post",
+    "title": "ChatGPT introduces persistent shopping carts across sessions",
+    "url": "https://openai.com/blog/chatgpt-shopping-carts",
+    "body_md": "Shopping conversations now persist a unified cart across sessions and devices. Powered by the new long-running Responses + Conversations stack.",
+    "metadata": {"tags": ["consumer", "shopping"]}
+  },
+  {
+    "id": "evt_0010",
+    "source_id": "simonw-blog",
+    "fixture_timestamp": "2026-04-04T22:00:00Z",
+    "kind": "post",
+    "title": "Datasette 1.2 with native SQLite vector search",
+    "url": "https://simonwillison.net/2026/Apr/04/datasette-1-2/",
+    "body_md": "Datasette 1.2 ships first-class vector search using SQLite's new `vector_search` extension. Includes a built-in embeddings UI for any text column.",
+    "metadata": {"tags": ["datasette", "sqlite", "vectors"]}
+  },
+  {
+    "id": "evt_0011",
+    "source_id": "anthropic-blog",
+    "fixture_timestamp": "2026-04-05T15:00:00Z",
+    "kind": "post",
+    "title": "Equipping agents for the real world with Agent Skills",
+    "url": "https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills",
+    "body_md": "We've made Agent Skills an open standard. A SKILL.md plus optional executable scripts and reference docs; progressive disclosure means only the metadata loads upfront. Now portable across Claude.ai, Claude Code, Agent SDK, and Managed Agents.",
+    "metadata": {"tags": ["skills", "agents", "open-standard"]}
+  },
+  {
+    "id": "evt_0012",
+    "source_id": "langgraph-releases",
+    "fixture_timestamp": "2026-04-05T19:12:00Z",
+    "kind": "release",
+    "title": "langgraph 1.2.1 — Postgres saver perf, fix for interrupt() inside subgraphs",
+    "url": "https://github.com/langchain-ai/langgraph/releases/tag/v1.2.1",
+    "body_md": "PostgresSaver checkpoint write down ~40% on average. Fixes a bug where `interrupt()` inside a subgraph would not propagate the resume Command upward.",
+    "metadata": {"version": "1.2.1"}
+  },
+  {
+    "id": "evt_0013",
+    "source_id": "openai-blog",
+    "fixture_timestamp": "2026-04-06T11:00:00Z",
+    "kind": "post",
+    "title": "Agents SDK adds resumable sandbox sessions",
+    "url": "https://openai.com/blog/agents-sdk-resumable-sandboxes",
+    "body_md": "Sandbox agents now have first-class resume across crashes. A manifest declares which files persist; the new Runner abstract base class lets durable executors plug in. Companion Temporal plugin ships at the same time.",
+    "metadata": {"tags": ["openai", "agents-sdk", "sandbox"]}
+  },
+  {
+    "id": "evt_0014",
+    "source_id": "simonw-blog",
+    "fixture_timestamp": "2026-04-06T20:30:00Z",
+    "kind": "post",
+    "title": "The lethal trifecta is everywhere: another MCP supply-chain incident",
+    "url": "https://simonwillison.net/2026/Apr/06/lethal-trifecta-mcp/",
+    "body_md": "A community MCP server combined private repo access, untrusted issue text, and outbound HTTP. Predictable result: prompt injection exfiltrating tokens. The lethal trifecta is exactly as dangerous as advertised.",
+    "metadata": {"tags": ["security", "mcp", "agents"]}
+  },
+  {
+    "id": "evt_0015",
+    "source_id": "temporal-blog",
+    "fixture_timestamp": "2026-04-07T10:00:00Z",
+    "kind": "post",
+    "title": "Ambient agents: Temporal as the substrate for always-on agents",
+    "url": "https://temporal.io/blog/ambient-agents-substrate",
+    "body_md": "We introduce 'ambient agents' as the pattern for agents that react to event streams rather than running continuously. A single Workflow per user, signals as the input plane, child workflows as task scopes.",
+    "metadata": {"tags": ["temporal", "agents", "patterns"]}
+  },
+  {
+    "id": "evt_0016",
+    "source_id": "anthropic-blog",
+    "fixture_timestamp": "2026-04-07T16:30:00Z",
+    "kind": "post",
+    "title": "New: Claude in Sheets",
+    "url": "https://www.anthropic.com/news/claude-sheets",
+    "body_md": "Add a `=CLAUDE()` formula to any Google Sheets cell. Available to Claude Pro and Team users today.",
+    "metadata": {"tags": ["product", "consumer"]}
+  },
+  {
+    "id": "evt_0017",
+    "source_id": "letta-releases",
+    "fixture_timestamp": "2026-04-08T09:25:00Z",
+    "kind": "release",
+    "title": "letta v1.4.1 — MemFS bugfixes, Postgres connection pool tuning",
+    "url": "https://github.com/letta-ai/letta/releases/tag/v1.4.1",
+    "body_md": "Fixes a race condition in MemFS where two concurrent tools could overwrite each other's edits. Default Postgres pool sized to CPU count; previously hard-coded to 4.",
+    "metadata": {"version": "1.4.1"}
+  },
+  {
+    "id": "evt_0018",
+    "source_id": "langchain-blog",
+    "fixture_timestamp": "2026-04-08T14:00:00Z",
+    "kind": "post",
+    "title": "Five RAG patterns for production",
+    "url": "https://blog.langchain.com/five-rag-patterns/",
+    "body_md": "Hybrid search, query rewriting, parent-document retrieval, graph-augmented retrieval, contextual compression. Examples in plain LangChain — no LangGraph required.",
+    "metadata": {"tags": ["rag", "tutorial"]}
+  },
+  {
+    "id": "evt_0019",
+    "source_id": "anthropic-blog",
+    "fixture_timestamp": "2026-04-08T18:00:00Z",
+    "kind": "post",
+    "title": "Effective context engineering for AI agents",
+    "url": "https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents",
+    "body_md": "Compaction, structured note-taking, sub-agent isolation, and just-in-time retrieval. We share the patterns we use internally to keep Claude productive past the point where naive context-stuffing collapses.",
+    "metadata": {"tags": ["context-engineering", "agents", "compaction"]}
+  },
+  {
+    "id": "evt_0020",
+    "source_id": "openai-blog",
+    "fixture_timestamp": "2026-04-09T12:00:00Z",
+    "kind": "post",
+    "title": "Voice mode for ChatGPT teachers",
+    "url": "https://openai.com/blog/voice-mode-teachers",
+    "body_md": "ChatGPT for Education adds voice mode tailored for K-12 instructors, with classroom-safe defaults.",
+    "metadata": {"tags": ["education", "voice"]}
+  },
+  {
+    "id": "evt_0021",
+    "source_id": "pydantic-ai-releases",
+    "fixture_timestamp": "2026-04-09T13:48:00Z",
+    "kind": "release",
+    "title": "pydantic-ai 1.86.1 — bugfixes for streaming + Temporal",
+    "url": "https://github.com/pydantic/pydantic-ai/releases/tag/v1.86.1",
+    "body_md": "Fixes a regression where streaming inside a TemporalAgent would buffer entire messages instead of emitting deltas. Also pins anthropic>=0.62 due to a tool_choice schema change.",
+    "metadata": {"version": "1.86.1"}
+  },
+  {
+    "id": "evt_0022",
+    "source_id": "temporal-blog",
+    "fixture_timestamp": "2026-04-09T17:00:00Z",
+    "kind": "post",
+    "title": "Cost engineering for long-running AI workflows",
+    "url": "https://temporal.io/blog/cost-engineering-long-running-ai",
+    "body_md": "How we cut a customer's weekly bill by 6× on a multi-day research workflow: prompt cache discipline (1-hour beta TTL), Sonnet routing for classification steps, and aggressive `continue_as_new` to keep histories small.",
+    "metadata": {"tags": ["cost", "temporal", "long-running"]}
+  },
+  {
+    "id": "evt_0023",
+    "source_id": "simonw-blog",
+    "fixture_timestamp": "2026-04-10T08:30:00Z",
+    "kind": "post",
+    "title": "Quick benchmark: prompt cache hit rates across long agent runs",
+    "url": "https://simonwillison.net/2026/Apr/10/prompt-cache-hit-rates/",
+    "body_md": "I ran the same multi-step research agent twice — once with strict 5-min cache discipline, once with the 1-hour beta TTL. The difference for a 4-hour run was 11× on the input-token bill. Notes and full ledger inside.",
+    "metadata": {"tags": ["caching", "cost", "agents"]}
+  },
+  {
+    "id": "evt_0024",
+    "source_id": "langgraph-releases",
+    "fixture_timestamp": "2026-04-10T11:11:00Z",
+    "kind": "release",
+    "title": "langgraph 1.2.2 — cron jobs in OSS, no Platform required",
+    "url": "https://github.com/langchain-ai/langgraph/releases/tag/v1.2.2",
+    "body_md": "Cron jobs (`@cron('0 9 * * *')` decorator) now usable from OSS LangGraph against any Postgres-backed checkpointer. Previously Platform-only. Includes a small CLI for listing and cancelling scheduled runs.",
+    "metadata": {"version": "1.2.2"}
+  },
+  {
+    "id": "evt_0025",
+    "source_id": "anthropic-blog",
+    "fixture_timestamp": "2026-04-10T15:00:00Z",
+    "kind": "post",
+    "title": "Managed Agents — pricing reduced and waitlist opened",
+    "url": "https://www.anthropic.com/news/managed-agents-pricing",
+    "body_md": "Runtime price reduced from $0.08 to $0.06 per agent-hour. Waitlist for the next 5,000 customers opens today.",
+    "metadata": {"tags": ["managed-agents", "pricing"]}
+  },
+  {
+    "id": "evt_0026",
+    "source_id": "letta-releases",
+    "fixture_timestamp": "2026-04-11T09:00:00Z",
+    "kind": "release",
+    "title": "letta v1.5.0 — first-class HITL approval primitives",
+    "url": "https://github.com/letta-ai/letta/releases/tag/v1.5.0",
+    "body_md": "New `requires_approval` flag on tools and `letta_client.approvals.respond(approval_id, decision)` API. Approvals are stored in Postgres and survive restarts indefinitely.",
+    "metadata": {"version": "1.5.0"}
+  },
+  {
+    "id": "evt_0027",
+    "source_id": "openai-blog",
+    "fixture_timestamp": "2026-04-11T13:00:00Z",
+    "kind": "post",
+    "title": "Operator handoff between web and desktop now in beta",
+    "url": "https://openai.com/blog/operator-handoff-beta",
+    "body_md": "Hand a running Operator session from your phone to your desktop without losing context. Beta to Pro users this week.",
+    "metadata": {"tags": ["operator", "consumer"]}
+  },
+  {
+    "id": "evt_0028",
+    "source_id": "langchain-blog",
+    "fixture_timestamp": "2026-04-11T16:30:00Z",
+    "kind": "post",
+    "title": "Autonomous context compression: a year-in-review",
+    "url": "https://blog.langchain.com/autonomous-context-compression-2026/",
+    "body_md": "What we've learned shipping LangGraph's autonomous compression in 2025: dynamic thresholds beat static ones, recall-first dominates relevance-first, and most teams under-invest in eval for their compaction step.",
+    "metadata": {"tags": ["context", "compaction", "langgraph"]}
+  },
+  {
+    "id": "evt_0029",
+    "source_id": "anthropic-blog",
+    "fixture_timestamp": "2026-04-12T14:00:00Z",
+    "kind": "post",
+    "title": "Building effective evaluators for long-running agents",
+    "url": "https://www.anthropic.com/engineering/effective-evaluators-long-running",
+    "body_md": "If you can't evaluate a multi-day agent end-to-end, you don't know if it's working. We share the evaluator patterns we use: episode replay, factuality probes, and the 'goal coherence' rubric.",
+    "metadata": {"tags": ["evals", "agents", "long-running"]}
+  },
+  {
+    "id": "evt_0030",
+    "source_id": "temporal-blog",
+    "fixture_timestamp": "2026-04-12T17:00:00Z",
+    "kind": "post",
+    "title": "Temporal Cloud: 99.99% SLA for AI workloads",
+    "url": "https://temporal.io/blog/cloud-9999-sla-ai",
+    "body_md": "Temporal Cloud is now offered with a 99.99% SLA on the AI/Agents tier. Includes priority support for OpenAI Agents SDK, Pydantic AI, Vercel AI SDK, and Google ADK integrations.",
+    "metadata": {"tags": ["temporal-cloud", "sla", "ai"]}
+  },
+  {
+    "id": "evt_0031",
+    "source_id": "simonw-blog",
+    "fixture_timestamp": "2026-04-13T09:15:00Z",
+    "kind": "post",
+    "title": "MCP servers I'm running on a tiny VPS",
+    "url": "https://simonwillison.net/2026/Apr/13/mcp-tiny-vps/",
+    "body_md": "Eight MCP servers, $5/month VPS, ~30MB RAM each. The lift on long-running agents from having durable, addressable tools is bigger than I expected. Bash transcripts inside.",
+    "metadata": {"tags": ["mcp", "agents", "self-hosted"]}
+  },
+  {
+    "id": "evt_0032",
+    "source_id": "openai-blog",
+    "fixture_timestamp": "2026-04-13T11:30:00Z",
+    "kind": "post",
+    "title": "Pricing change: standard input tokens drop 20% across all GPT-5 models",
+    "url": "https://openai.com/blog/pricing-update-2026-04",
+    "body_md": "Effective immediately, standard input token pricing for all GPT-5 family models is 20% lower. Cached input pricing unchanged. Full price table in the API docs.",
+    "metadata": {"tags": ["pricing", "openai"]}
+  },
+  {
+    "id": "evt_0033",
+    "source_id": "pydantic-ai-releases",
+    "fixture_timestamp": "2026-04-13T15:42:00Z",
+    "kind": "release",
+    "title": "pydantic-ai 1.87.0 — graph snapshots and partial replay",
+    "url": "https://github.com/pydantic/pydantic-ai/releases/tag/v1.87.0",
+    "body_md": "`pydantic_graph` now ships first-class snapshots: any node entry persists a snapshot to your durable backend. `graph.replay(snapshot_id, modify=lambda g: ...)` lets you fork from any past point. Works with all four durable executors.",
+    "metadata": {"version": "1.87.0"}
+  },
+  {
+    "id": "evt_0034",
+    "source_id": "langchain-blog",
+    "fixture_timestamp": "2026-04-13T18:00:00Z",
+    "kind": "post",
+    "title": "Case study: a 30-day literature-review agent on LangGraph + DynamoDB",
+    "url": "https://blog.langchain.com/case-study-30-day-literature-agent/",
+    "body_md": "A research lab built a literature-review agent that runs continuously for 30 days, reading papers and updating a synthesis. End-to-end: LangGraph + DynamoDB checkpointer + scheduled cron + LangMem for procedural memory. Findings, costs, and lessons inside.",
+    "metadata": {"tags": ["case-study", "long-running", "langgraph", "langmem"]}
+  },
+  {
+    "id": "evt_0035",
+    "source_id": "anthropic-blog",
+    "fixture_timestamp": "2026-04-14T10:30:00Z",
+    "kind": "post",
+    "title": "Sub-agents in the Claude Agent SDK: best practices after 6 months",
+    "url": "https://www.anthropic.com/engineering/sub-agents-best-practices",
+    "body_md": "What we've learned watching customers use sub-agents at scale: keep sub-agent prompts under 500 tokens, never spawn recursively, and always require a structured return type. The third rule is the one most often violated.",
+    "metadata": {"tags": ["claude-agent-sdk", "sub-agents", "patterns"]}
+  },
+  {
+    "id": "evt_0036",
+    "source_id": "letta-releases",
+    "fixture_timestamp": "2026-04-14T14:20:00Z",
+    "kind": "release",
+    "title": "letta v1.5.1 — bugfix for HITL deadlock under concurrent approvals",
+    "url": "https://github.com/letta-ai/letta/releases/tag/v1.5.1",
+    "body_md": "Fixes a deadlock when multiple approval requests on the same agent are answered out of order. Adds an `approvals.list(agent_id, status='pending')` helper.",
+    "metadata": {"version": "1.5.1"}
+  },
+  {
+    "id": "evt_0037",
+    "source_id": "temporal-blog",
+    "fixture_timestamp": "2026-04-14T16:00:00Z",
+    "kind": "post",
+    "title": "Replay debugging: pinpoint LLM non-determinism with one click",
+    "url": "https://temporal.io/blog/replay-debugging-llm-nondeterminism",
+    "body_md": "Walkthrough of the new Replay Debugger UI in Temporal Cloud: pick any past Workflow execution, mutate a single LLM response in the recorded history, and see the divergence ripple through.",
+    "metadata": {"tags": ["temporal-cloud", "replay", "debugging"]}
+  },
+  {
+    "id": "evt_0038",
+    "source_id": "openai-blog",
+    "fixture_timestamp": "2026-04-14T19:00:00Z",
+    "kind": "post",
+    "title": "ChatGPT Pets",
+    "url": "https://openai.com/blog/chatgpt-pets",
+    "body_md": "A persistent virtual companion in ChatGPT, with 12 species and a feeding mechanic. Available to Plus subscribers.",
+    "metadata": {"tags": ["consumer"]}
+  },
+  {
+    "id": "evt_0039",
+    "source_id": "langgraph-releases",
+    "fixture_timestamp": "2026-04-15T09:00:00Z",
+    "kind": "release",
+    "title": "langgraph 1.3.0 — Store gets vector + graph backends",
+    "url": "https://github.com/langchain-ai/langgraph/releases/tag/v1.3.0",
+    "body_md": "The long-term Store now ships first-class vector and graph backends in addition to KV. Pgvector, Pinecone, Neo4j, and FalkorDB integrations included. Memory namespaces stable.",
+    "metadata": {"version": "1.3.0"}
+  },
+  {
+    "id": "evt_0040",
+    "source_id": "simonw-blog",
+    "fixture_timestamp": "2026-04-15T20:00:00Z",
+    "kind": "post",
+    "title": "I let an agent maintain my reading list for two weeks",
+    "url": "https://simonwillison.net/2026/Apr/15/agent-reading-list/",
+    "body_md": "Two weeks of letting Claude Agent SDK keep my reading list. Approval gate every Sunday. Findings: it learned my tastes faster than I expected, drifted toward 'Anthropic-coded' content without correction, and burned more cache than it should have. Ledger and prompts inside.",
+    "metadata": {"tags": ["agents", "claude-agent-sdk", "personal"]}
+  }
+]

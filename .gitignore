@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+.eggs/
+*.egg-info/
+*.egg
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# Build / dist
+build/
+dist/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Results — committed selectively, raw runs ignored
+results/runs/
+results/*.json
+results/*.sqlite
+!results/.gitkeep
+!results/README.md
+
+# Implementation-local state
+implementations/*/state/
+implementations/*/.checkpoints/
+implementations/*/letta-data/
+implementations/*/temporal-data/
+implementations/*/postgres-data/
+
+# e2b
+.e2b/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Local Claude Code settings (per-machine)
+.claude/

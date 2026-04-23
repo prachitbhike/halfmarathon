@@ -1,0 +1,7 @@
+template_id     = "halfmarathon-langgraph"
+template_name   = "halfmarathon-langgraph"
+dockerfile      = "Dockerfile"
+start_cmd       = "/workspace/infra/e2b/langgraph/start.sh"
+team_id         = ""
+cpu_count       = 2
+memory_mb       = 4096

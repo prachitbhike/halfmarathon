@@ -1,0 +1,7 @@
+template_id     = "halfmarathon-temporal-pydantic"
+template_name   = "halfmarathon-temporal-pydantic"
+dockerfile      = "Dockerfile"
+start_cmd       = "/workspace/infra/e2b/temporal-pydantic/start.sh"
+team_id         = ""
+cpu_count       = 2
+memory_mb       = 4096
