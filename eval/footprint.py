@@ -48,6 +48,20 @@ IMPL_OPS_METADATA: dict[str, dict[str, Any]] = {
         "ops_steps": [
             "uv pip install langgraph langgraph-checkpoint-sqlite",
         ],
+        # 1-5 ratings; higher = better unless noted otherwise.
+        "ratings": {
+            "observability": (4, "LangGraph Studio + LangSmith integration; "
+                                 "checkpoint state inspectable via API."),
+            "mental_model_simplicity": (3, "Graph + state + checkpointer; "
+                                           "well-documented but you own routing."),
+            "production_scaling": (4, "Stateless workers + checkpointer in "
+                                      "shared db scales horizontally."),
+            "multi_tenancy": (4, "thread_id per user is the canonical pattern; "
+                                 "well-supported."),
+            "type_safety": (3, "TypedDict state. Tools and edges are loose."),
+        },
+        "vendor_lockin": "Low — Apache 2.0; tied to LangChain ecosystem but "
+                         "model-provider-agnostic.",
     },
     "temporal_pydantic": {
         "services_to_run": 1,  # Temporal dev server (auto-spawned)
@@ -56,6 +70,24 @@ IMPL_OPS_METADATA: dict[str, dict[str, Any]] = {
             "uv pip install pydantic-ai-slim[temporal,anthropic] temporalio",
             "Temporal dev server: bundled in temporalio.testing — auto-spawn",
         ],
+        "ratings": {
+            "observability": (5, "Temporal Web UI is the gold standard for "
+                                 "workflow debugging: time-travel replay, "
+                                 "event history, signal/query inspection."),
+            "mental_model_simplicity": (
+                2, "Workflow/activity determinism contract is famously steep. "
+                   "pydantic-ai layer adds another concept on top.",
+            ),
+            "production_scaling": (5, "Designed for it. Workers scale "
+                                      "horizontally, history is durable."),
+            "multi_tenancy": (4, "workflow-per-user is the canonical pattern; "
+                                 "well-supported with workflow IDs."),
+            "type_safety": (5, "Pydantic models flow through Temporal payloads "
+                               "via pydantic_data_converter; workflow inputs typed."),
+        },
+        "vendor_lockin": "Low — Temporal is OSS Apache 2.0, polyglot (Go/"
+                         "Python/TS/Java/Ruby/PHP). Pydantic-AI is OSS MIT. "
+                         "Model provider swappable.",
     },
     "letta": {
         "services_to_run": 2,  # Letta server + Postgres
@@ -66,6 +98,23 @@ IMPL_OPS_METADATA: dict[str, dict[str, Any]] = {
             "Postgres + pgvector extension installed",
             "Schema bootstrap (no migration tool bundled — see findings.md)",
         ],
+        "ratings": {
+            "observability": (3, "Web dashboard for agents/messages; limited "
+                                 "workflow-level view."),
+            "mental_model_simplicity": (
+                3, "Server + memory blocks + recall + archival is idiomatic "
+                   "but specific to Letta's worldview.",
+            ),
+            "production_scaling": (4, "Server scales independently; multi-"
+                                      "agent fan-out is built-in."),
+            "multi_tenancy": (5, "Built for it: each user is an agent, "
+                                 "memory_blocks isolate state."),
+            "type_safety": (3, "Pydantic models internally; client surface is "
+                               "dict-heavy."),
+        },
+        "vendor_lockin": "Medium — Open source MIT, but the server-resident "
+                         "agent model is Letta-specific. Letta Cloud lock-in "
+                         "if you don't self-host (which itself is non-trivial).",
     },
     "claude_sdk": {
         "services_to_run": 0,
@@ -74,11 +123,29 @@ IMPL_OPS_METADATA: dict[str, dict[str, Any]] = {
             "uv pip install claude-agent-sdk",
             "Anthropic API key (real LLM, no offline mock)",
         ],
+        "ratings": {
+            "observability": (3, "Hooks (PreToolUse, PostToolUse, Stop) + "
+                                 "transcripts + git history. DIY observability."),
+            "mental_model_simplicity": (
+                5, "Agent reads files, runs in a loop. Almost trivial conceptually.",
+            ),
+            "production_scaling": (2, "Single process per agent. Multi-agent "
+                                      "orchestration is your problem."),
+            "multi_tenancy": (2, "One CWD per agent — per-user means "
+                                 "per-process or per-directory."),
+            "type_safety": (2, "Plain Python. Types are what you write."),
+        },
+        "vendor_lockin": "High — Anthropic API only. SDK is MIT, but the "
+                         "agent loop assumes Claude semantics. Bedrock/Vertex "
+                         "routing exists but you're still on Anthropic models.",
     },
 }
 
 
 # ---- computed metrics --------------------------------------------------
+
+
+RatingValue = tuple[int, str]  # (score 1-5, one-line rationale)
 
 
 @dataclass(frozen=True)
@@ -91,6 +158,9 @@ class Footprint:
     services_to_run: int
     prod_storage: str
     ops_steps: list[str]
+    # Hand-curated 1-5 ratings, each with a one-line rationale.
+    ratings: dict[str, RatingValue]
+    vendor_lockin: str
 
     @property
     def setup_step_count(self) -> int:
@@ -151,6 +221,11 @@ def _mean_elapsed(impl_id: str, results: list[dict]) -> float | None:
 def compute(impl_id: str, results: list[dict]) -> Footprint:
     loc, files = _count_loc(impl_id)
     ops = IMPL_OPS_METADATA.get(impl_id, {})
+    raw_ratings = ops.get("ratings") or {}
+    # Normalize: tuple form (score, note); accept missing as (0, "").
+    ratings: dict[str, RatingValue] = {
+        k: (int(v[0]), str(v[1])) for k, v in raw_ratings.items()
+    }
     return Footprint(
         impl_id=impl_id,
         lines_of_code=loc,
@@ -160,6 +235,8 @@ def compute(impl_id: str, results: list[dict]) -> Footprint:
         services_to_run=int(ops.get("services_to_run", 0)),
         prod_storage=str(ops.get("prod_storage", "")),
         ops_steps=list(ops.get("ops_steps") or []),
+        ratings=ratings,
+        vendor_lockin=str(ops.get("vendor_lockin", "")),
     )
 
 

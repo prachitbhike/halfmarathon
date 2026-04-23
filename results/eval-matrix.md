@@ -52,6 +52,65 @@ _Bold = best in row. Profile descriptions:_
 - **Memory-driven** — Personal-assistant or research-radar patterns where memory across long horizons IS the value prop. Boosts memory recall and continuity.
 
 
+## Beyond-accuracy ratings (what dim scores can't measure)
+
+Hand-curated 1-5 scores (5 = best) for the framework qualities developers weigh at adoption time but the dim accuracy can't capture. Ratings reflect honest builder experience from Phases 0-5; rationale lives below the table for auditability.
+
+| Capability | `claude_sdk` | `langgraph` | `temporal_pydantic` |
+| --- | --- | --- | --- |
+| Observability / debug UX | 3/5 | 4/5 | **5/5** |
+| Mental model simplicity | **5/5** | 3/5 | 2/5 |
+| Production scaling | 2/5 | 4/5 | **5/5** |
+| Multi-tenancy support | 2/5 | **4/5** | **4/5** |
+| Type safety / IDE support | 2/5 | 3/5 | **5/5** |
+| **Vendor lock-in** | High — Anthropic API only. SDK is MIT, but the agent loop assumes Claude semantics. Bedrock/Vertex routing exists but you're still on Anthropic models. | Low — Apache 2.0; tied to LangChain ecosystem but model-provider-agnostic. | Low — Temporal is OSS Apache 2.0, polyglot (Go/Python/TS/Java/Ruby/PHP). Pydantic-AI is OSS MIT. Model provider swappable. |
+
+### Rating rationale
+
+**Observability / debug UX**
+- `claude_sdk` (3/5): Hooks (PreToolUse, PostToolUse, Stop) + transcripts + git history. DIY observability.
+- `langgraph` (4/5): LangGraph Studio + LangSmith integration; checkpoint state inspectable via API.
+- `temporal_pydantic` (5/5): Temporal Web UI is the gold standard for workflow debugging: time-travel replay, event history, signal/query inspection.
+
+**Mental model simplicity**
+- `claude_sdk` (5/5): Agent reads files, runs in a loop. Almost trivial conceptually.
+- `langgraph` (3/5): Graph + state + checkpointer; well-documented but you own routing.
+- `temporal_pydantic` (2/5): Workflow/activity determinism contract is famously steep. pydantic-ai layer adds another concept on top.
+
+**Production scaling**
+- `claude_sdk` (2/5): Single process per agent. Multi-agent orchestration is your problem.
+- `langgraph` (4/5): Stateless workers + checkpointer in shared db scales horizontally.
+- `temporal_pydantic` (5/5): Designed for it. Workers scale horizontally, history is durable.
+
+**Multi-tenancy support**
+- `claude_sdk` (2/5): One CWD per agent — per-user means per-process or per-directory.
+- `langgraph` (4/5): thread_id per user is the canonical pattern; well-supported.
+- `temporal_pydantic` (4/5): workflow-per-user is the canonical pattern; well-supported with workflow IDs.
+
+**Type safety / IDE support**
+- `claude_sdk` (2/5): Plain Python. Types are what you write.
+- `langgraph` (3/5): TypedDict state. Tools and edges are loose.
+- `temporal_pydantic` (5/5): Pydantic models flow through Temporal payloads via pydantic_data_converter; workflow inputs typed.
+
+
+## Cost projection (extrapolated to production scale)
+
+Per-digest cost is **measured** for impls run with a real LLM, and **estimated** (~$0.24/digest) for impls run in offline mock mode based on typical token usage with Sonnet 4.6. The framework adds ~zero cost beyond the model API.
+
+| Workload | `claude_sdk` | `langgraph` | `temporal_pydantic` |
+| --- | --- | --- | --- |
+| **$ per digest** (basis) | $2.39 (measured) | $0.24 (estimated) | $0.24 (estimated) |
+| Personal (1/wk) | $2.39/wk | $0.24/wk | $0.24/wk |
+| Small team (10/wk) | $23.93/wk | $2.40/wk | $2.40/wk |
+| Small SaaS (50/wk) | $119.66/wk | $12.00/wk | $12.00/wk |
+| Large SaaS (5000/wk) | $11,966.25/wk | $1,200.00/wk | $1,200.00/wk |
+
+_Notes:_
+_- Measured numbers come from the actual API spend on this impl's_ _real-LLM run; estimated numbers assume `task/llm.py`'s relevance_ _scoring + summarization pattern at ~30k input + ~10k output tokens_ _per published digest._
+_- claude_sdk's per-digest cost is ~6x higher than the others_ _because the agent loop emits multiple LLM exchanges per tick (Read,_ _Write, Bash, summarize)  vs the offline pair's single batched_ _relevance call + N summarization calls._
+_- Real-world variance: ±2x depending on user interest count, source_ _event density, and cache hit rate._
+
+
 ## Footprint comparison (what the impl IS, not what it does)
 
 Dim accuracy is largely an LLM property. These rows are framework properties — they're what differentiates impls that share the same LLM (e.g. langgraph and temporal_pydantic on the offline mock).
@@ -80,51 +139,45 @@ Dim accuracy is largely an LLM property. These rows are framework properties —
   2. Temporal dev server: bundled in temporalio.testing — auto-spawn
 
 
-## Per-impl rankings (strengths and weaknesses)
+## Per-impl differentiating signals
 
-_For each impl, the dims where it scores highest and lowest, annotated with rank vs the others. Skipped/errored cells excluded._
+_For each impl: dims where it notably differs from the others_ _(>=0.10 above or below the median of peers), plus footprint-level_ _callouts where this impl is uniquely highest/lowest. If an impl has_ _no entries here, it's in the pack on every measured axis._
 
 ### `claude_sdk`
 
 _Cells run: 2/8._
 
-**Strengths** (≥0.85):
-- dim 6 *HITL gate spanning hours* — **1.00** (rank tied 1/3)
+**Differentiating weaknesses** (≥0.10 below peer median):
+- dim 8 *Replay determinism*: **0.66** (-0.34 vs median)
 
-**Weaknesses** (<0.75):
-- dim 8 *Replay determinism* — **0.66** (rank 3/3)
+**Footprint-level callouts:**
+- Lowest LOC (317)
+- Slowest mean wall-clock (1318.0s/cell)
+- Fewest services to run (0)
+- Best at mental model simplicity (5/5)
+- Weakest at production scaling (2/5)
+- Weakest at multi-tenancy support (2/5)
+- Weakest at type safety / ide support (2/5)
 
 ### `langgraph`
 
 _Cells run: 8/8._
 
-**Strengths** (≥0.85):
-- dim 1 *Crash recovery* — **1.00** (rank tied 1/2)
-- dim 2 *Multi-day with sleeps + multi-restart* — **1.00** (rank tied 1/2)
-- dim 3 *Cross-window continuity (structural)* — **1.00** (rank tied 1/2)
-- dim 4 *Memory recall (filing)* — **1.00** (rank tied 1/2)
-- dim 6 *HITL gate spanning hours* — **1.00** (rank tied 1/3)
-- dim 8 *Replay determinism* — **1.00** (rank tied 1/3)
-
-**Weaknesses** (<0.75):
-- dim 5 *Goal drift* — **0.69** (rank tied 1/2)
-- dim 7 *Stale external state* — **0.50** (rank tied 1/2)
+**Footprint-level callouts:**
+- Fastest mean wall-clock (24.5s/cell)
+- Fewest services to run (0)
 
 ### `temporal_pydantic`
 
 _Cells run: 8/8._
 
-**Strengths** (≥0.85):
-- dim 1 *Crash recovery* — **1.00** (rank tied 1/2)
-- dim 2 *Multi-day with sleeps + multi-restart* — **1.00** (rank tied 1/2)
-- dim 3 *Cross-window continuity (structural)* — **1.00** (rank tied 1/2)
-- dim 4 *Memory recall (filing)* — **1.00** (rank tied 1/2)
-- dim 6 *HITL gate spanning hours* — **1.00** (rank tied 1/3)
-- dim 8 *Replay determinism* — **1.00** (rank tied 1/3)
-
-**Weaknesses** (<0.75):
-- dim 5 *Goal drift* — **0.69** (rank tied 1/2)
-- dim 7 *Stale external state* — **0.50** (rank tied 1/2)
+**Footprint-level callouts:**
+- Highest LOC (1019)
+- Most services to run (1)
+- Best at observability / debug ux (5/5)
+- Weakest at mental model simplicity (2/5)
+- Best at production scaling (5/5)
+- Best at type safety / ide support (5/5)
 
 ## Status matrix (with notes)
 

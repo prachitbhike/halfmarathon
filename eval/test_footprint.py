@@ -62,3 +62,29 @@ def test_actual_repo_loc_is_nonzero_for_real_impls() -> None:
 def test_setup_step_count_matches_ops_steps_length() -> None:
     fp = compute("langgraph", results=[])
     assert fp.setup_step_count == len(fp.ops_steps)
+
+
+def test_every_known_impl_has_full_rating_set() -> None:
+    """Every impl should have all 5 capability ratings + vendor_lockin."""
+    expected_keys = {
+        "observability", "mental_model_simplicity", "production_scaling",
+        "multi_tenancy", "type_safety",
+    }
+    for impl_id in IMPL_OPS_METADATA:
+        fp = compute(impl_id, results=[])
+        assert set(fp.ratings.keys()) >= expected_keys, (
+            f"{impl_id} missing some ratings: "
+            f"{expected_keys - set(fp.ratings.keys())}"
+        )
+        assert fp.vendor_lockin, f"{impl_id} missing vendor_lockin"
+        for key, (score, note) in fp.ratings.items():
+            assert 1 <= score <= 5, f"{impl_id}.{key} out of 1-5: {score}"
+            assert note, f"{impl_id}.{key} has no rationale"
+
+
+def test_ratings_are_normalized_to_int_score_str_note() -> None:
+    fp = compute("langgraph", results=[])
+    for value in fp.ratings.values():
+        score, note = value
+        assert isinstance(score, int)
+        assert isinstance(note, str)
