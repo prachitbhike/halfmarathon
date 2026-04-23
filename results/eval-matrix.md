@@ -52,6 +52,34 @@ _Bold = best in row. Profile descriptions:_
 - **Memory-driven** — Personal-assistant or research-radar patterns where memory across long horizons IS the value prop. Boosts memory recall and continuity.
 
 
+## Footprint comparison (what the impl IS, not what it does)
+
+Dim accuracy is largely an LLM property. These rows are framework properties — they're what differentiates impls that share the same LLM (e.g. langgraph and temporal_pydantic on the offline mock).
+
+| Metric | `claude_sdk` | `langgraph` | `temporal_pydantic` |
+| --- | --- | --- | --- |
+| Impl source LOC (excl. tests/init) | 317 | 419 | 1019 |
+| Source files | 1 | 1 | 4 |
+| Direct pip deps | 1 | 2 | 2 |
+| Long-lived services | 0 | 0 | 1 |
+| Setup steps from clean machine | 2 | 1 | 2 |
+| Mean wall-clock per cell (s) | 1318.0 | 24.5 | 25.8 |
+| Production storage | Filesystem (progress.md + knowledge_base.json + git) | SQLite file (or Postgres for HA) | Temporal history (Cassandra/Postgres in prod) |
+
+### Setup steps detail
+
+**`claude_sdk`** — 2 step(s):
+  1. uv pip install claude-agent-sdk
+  2. Anthropic API key (real LLM, no offline mock)
+
+**`langgraph`** — 1 step(s):
+  1. uv pip install langgraph langgraph-checkpoint-sqlite
+
+**`temporal_pydantic`** — 2 step(s):
+  1. uv pip install pydantic-ai-slim[temporal,anthropic] temporalio
+  2. Temporal dev server: bundled in temporalio.testing — auto-spawn
+
+
 ## Per-impl rankings (strengths and weaknesses)
 
 _For each impl, the dims where it scores highest and lowest, annotated with rank vs the others. Skipped/errored cells excluded._

@@ -16,6 +16,7 @@ import json
 from pathlib import Path
 
 from eval.dimensions.base import DimensionStatus
+from eval.footprint import compute_all as compute_footprints
 from eval.profiles import PROFILES, score_all
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -463,6 +464,59 @@ def _strengths_block(
     return lines
 
 
+def _footprint_block(impls: list[str], results: list[dict]) -> list[str]:
+    """Cross-impl metrics that vary independently of LLM behavior.
+
+    LOC, deps, mean wall-clock, services-to-run — these separate impls that
+    score identically on the LLM-driven dimensions. Hand-curated ops_steps
+    in eval/footprint.py back the "Setup steps" + "Prod storage" rows.
+    """
+    fps = compute_footprints(impls, results)
+    lines = [
+        "",
+        "## Footprint comparison (what the impl IS, not what it does)",
+        "",
+        "Dim accuracy is largely an LLM property. These rows are framework "
+        "properties — they're what differentiates impls that share the same "
+        "LLM (e.g. langgraph and temporal_pydantic on the offline mock).",
+        "",
+        "| Metric | " + " | ".join(f"`{i}`" for i in impls) + " |",
+        "| --- | " + " | ".join(["---"] * len(impls)) + " |",
+        "| Impl source LOC (excl. tests/init) | "
+        + " | ".join(str(fps[i].lines_of_code) for i in impls) + " |",
+        "| Source files | "
+        + " | ".join(str(fps[i].source_files) for i in impls) + " |",
+        "| Direct pip deps | "
+        + " | ".join(str(fps[i].direct_deps) for i in impls) + " |",
+        "| Long-lived services | "
+        + " | ".join(str(fps[i].services_to_run) for i in impls) + " |",
+        "| Setup steps from clean machine | "
+        + " | ".join(str(fps[i].setup_step_count) for i in impls) + " |",
+        "| Mean wall-clock per cell (s) | "
+        + " | ".join(
+            f"{fps[i].mean_elapsed_s:.1f}" if fps[i].mean_elapsed_s is not None
+            else "—"
+            for i in impls
+        )
+        + " |",
+        "| Production storage | "
+        + " | ".join(
+            f"{fps[i].prod_storage}" if fps[i].prod_storage else "—"
+            for i in impls
+        )
+        + " |",
+        "",
+        "### Setup steps detail",
+        "",
+    ]
+    for i in impls:
+        lines.append(f"**`{i}`** — {fps[i].setup_step_count} step(s):")
+        for n, step in enumerate(fps[i].ops_steps, 1):
+            lines.append(f"  {n}. {step}")
+        lines.append("")
+    return lines
+
+
 def _notes_block() -> list[str]:
     return [
         "",
@@ -491,6 +545,7 @@ def render(summary_path: Path) -> str:
         *_header_block(summary, summary_path),
         *acc_lines,
         *_profile_composites_block(impls, scores_by_impl),
+        *_footprint_block(impls, summary["results"]),
         *_strengths_block(impls, dims, scores_by_impl),
         *_status_matrix(dims, impls),
         *_components_block(dims, impls),
