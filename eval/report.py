@@ -16,6 +16,7 @@ import json
 from pathlib import Path
 
 from eval.dimensions.base import DimensionStatus
+from eval.profiles import PROFILES, score_all
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -288,6 +289,180 @@ def _cross_cut_block(
     return lines
 
 
+def _impl_dim_scores(
+    dims: dict[int, dict], impls: list[str],
+) -> dict[str, dict[int, float | None]]:
+    """Build {impl_id: {dim_id: accuracy_or_None}} from the matrix."""
+    out: dict[str, dict[int, float | None]] = {impl: {} for impl in impls}
+    for dim_id, info in dims.items():
+        for impl_id in impls:
+            r = info["by_impl"].get(impl_id)
+            if r is None:
+                continue
+            status = DimensionStatus(r["status"])
+            acc = r.get("accuracy")
+            if status in (DimensionStatus.SKIPPED, DimensionStatus.ERROR):
+                out[impl_id][dim_id] = None
+            else:
+                out[impl_id][dim_id] = (
+                    None if acc is None else float(acc)
+                )
+    return out
+
+
+def _profile_composites_block(
+    impls: list[str], scores_by_impl: dict[str, dict[int, float | None]],
+) -> list[str]:
+    """Render the use-case profile composite table."""
+    profile_results = score_all(scores_by_impl)
+    lines = [
+        "",
+        "## Composite by use-case profile",
+        "",
+        "Single composite scores hide which workload an impl is strong for. "
+        "These rows re-weight the dims for different kinds of project. Each "
+        "profile excludes impls that didn't run a critical mass of the "
+        "weighted dims (shown as `—`).",
+        "",
+        "| Profile | " + " | ".join(f"`{i}`" for i in impls) + " | Boosted dims |",
+        "| --- | " + " | ".join(["---"] * len(impls)) + " | --- |",
+    ]
+    for prof in PROFILES:
+        per_impl = {ps.impl_id: ps for ps in profile_results[prof.name]}
+        cells = [f"**{prof.name}**"]
+        # Find the best score for bolding the leader.
+        candidates = [(ps.composite, ps.impl_id) for ps in per_impl.values()
+                      if ps.composite is not None]
+        best_score = max((c for c, _ in candidates), default=None)
+        for impl_id in impls:
+            ps = per_impl.get(impl_id)
+            if ps is None or ps.composite is None:
+                cells.append("—")
+                continue
+            tag = (
+                f"**{ps.composite:.2f}**"
+                if best_score is not None and abs(ps.composite - best_score) < 1e-9
+                else f"{ps.composite:.2f}"
+            )
+            cells.append(tag)
+        boosted = ", ".join(
+            f"d{d}x{w:g}"
+            for d, w in sorted(prof.weights.items())
+            if w > prof.default_weight
+        )
+        cells.append(boosted)
+        lines.append("| " + " | ".join(cells) + " |")
+    lines += [
+        "",
+        "_Bold = best in row. Profile descriptions:_",
+        "",
+    ]
+    for prof in PROFILES:
+        lines.append(f"- **{prof.name}** — {prof.description}")
+    lines.append("")
+    return lines
+
+
+def _strengths_block(
+    impls: list[str],
+    dims: dict[int, dict],
+    scores_by_impl: dict[str, dict[int, float | None]],
+) -> list[str]:
+    """Per-impl rankings: where each impl wins, where each impl loses."""
+    # For each dim, rank impls by accuracy (desc, ties allowed).
+    # Then for each impl, surface its top-2 and bottom-2 dims AND its
+    # rank-vs-others on each.
+    dim_names = {d_id: info["name"] for d_id, info in dims.items()}
+
+    # rank_per_dim[dim_id] = sorted [(score, impl_id)] desc (None scores excluded)
+    rank_per_dim: dict[int, list[tuple[float, str]]] = {}
+    for dim_id in dims:
+        rows = [
+            (scores_by_impl[i].get(dim_id), i)
+            for i in impls
+            if scores_by_impl[i].get(dim_id) is not None
+        ]
+        rank_per_dim[dim_id] = sorted(
+            ((s, i) for s, i in rows if s is not None),
+            key=lambda x: -x[0],
+        )
+
+    def _rank_of(dim_id: int, impl_id: str) -> str:
+        ranking = rank_per_dim[dim_id]
+        if not ranking:
+            return "—"
+        score = scores_by_impl[impl_id].get(dim_id)
+        if score is None:
+            return "—"
+        # Group by tie
+        position = 1
+        for s, _i in ranking:
+            if abs(s - score) < 1e-9:
+                break
+            position += 1
+        ties = sum(1 for s, _ in ranking if abs(s - score) < 1e-9)
+        n = len(ranking)
+        if ties > 1:
+            return f"tied {position}/{n}"
+        return f"{position}/{n}"
+
+    lines = [
+        "",
+        "## Per-impl rankings (strengths and weaknesses)",
+        "",
+        "_For each impl, the dims where it scores highest and lowest, "
+        "annotated with rank vs the others. Skipped/errored cells excluded._",
+        "",
+    ]
+    # Absolute thresholds: a strength means actually high; a weakness means
+    # actually low. Don't promote "top of two cells" if both cells are bad.
+    STRENGTH_FLOOR = 0.85
+    WEAKNESS_CEIL = 0.75
+
+    for impl_id in impls:
+        scored_dims = [
+            (d_id, s) for d_id, s in scores_by_impl[impl_id].items()
+            if s is not None
+        ]
+        if not scored_dims:
+            lines += [f"### `{impl_id}`", "", "_No scored dimensions._", ""]
+            continue
+        scored_dims.sort(key=lambda x: -x[1])
+        n_run = len(scored_dims)
+        strengths = [(d, s) for d, s in scored_dims if s >= STRENGTH_FLOOR]
+        weaknesses = [(d, s) for d, s in scored_dims if s < WEAKNESS_CEIL]
+        middling = [
+            (d, s) for d, s in scored_dims
+            if WEAKNESS_CEIL <= s < STRENGTH_FLOOR
+        ]
+
+        lines.append(f"### `{impl_id}`")
+        lines.append("")
+        lines.append(f"_Cells run: {n_run}/{len(dims)}._")
+        lines.append("")
+
+        if strengths:
+            lines.append(f"**Strengths** (≥{STRENGTH_FLOOR:.2f}):")
+            for d_id, s in strengths:
+                lines.append(
+                    f"- dim {d_id} *{dim_names[d_id]}* — **{s:.2f}** "
+                    f"(rank {_rank_of(d_id, impl_id)})"
+                )
+            lines.append("")
+        if weaknesses:
+            lines.append(f"**Weaknesses** (<{WEAKNESS_CEIL:.2f}):")
+            for d_id, s in weaknesses:
+                lines.append(
+                    f"- dim {d_id} *{dim_names[d_id]}* — **{s:.2f}** "
+                    f"(rank {_rank_of(d_id, impl_id)})"
+                )
+            lines.append("")
+        if middling and not strengths and not weaknesses:
+            lines.append("_All scored dims fall in the middle range (0.75-0.85)._")
+            lines.append("")
+    return lines
+
+
 def _notes_block() -> list[str]:
     return [
         "",
@@ -310,10 +485,13 @@ def render(summary_path: Path) -> str:
     impls, dims = _pivot(summary["results"])
 
     acc_lines, _, elapsed, cost, digests = _accuracy_matrix(dims, impls)
+    scores_by_impl = _impl_dim_scores(dims, impls)
 
     return "\n".join([
         *_header_block(summary, summary_path),
         *acc_lines,
+        *_profile_composites_block(impls, scores_by_impl),
+        *_strengths_block(impls, dims, scores_by_impl),
         *_status_matrix(dims, impls),
         *_components_block(dims, impls),
         *_elapsed_block(dims, impls),
