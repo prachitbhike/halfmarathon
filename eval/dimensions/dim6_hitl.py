@@ -59,9 +59,14 @@ async def run(  # noqa: PLR0911
     base.mkdir(parents=True, exist_ok=True)
 
     fixture_start = DEFAULT_FIXTURE_START
-    # Wed -> Wed (covers first Monday Apr 6, the Monday-only draft trigger)
+    # Window length is overridable via HALFMARATHON_DIM_DAYS (default 15) so
+    # slow real-LLM impls (claude_sdk) can run a shorter window. Phase A is
+    # bounded to 7 days regardless — that's what covers the first Monday
+    # Apr 6 (the Monday-only draft trigger). Only Phase B's tail shortens.
     fixture_after_sunday = DEFAULT_FIXTURE_START + timedelta(days=7)
-    fixture_until = DEFAULT_FIXTURE_START + timedelta(days=15)
+    fixture_until = DEFAULT_FIXTURE_START + timedelta(
+        days=int(os.environ.get("HALFMARATHON_DIM_DAYS", "15"))
+    )
     speed = float(os.environ.get("HALFMARATHON_DIM_SPEED", "86400"))
 
     # Plan: only test the FIRST week's digest. We pre-approve the second
