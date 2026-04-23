@@ -20,8 +20,10 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, TypedDict
 
+from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.graph import END, START, StateGraph
+from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import Command, interrupt
 
 from task.clock import DEFAULT_FIXTURE_START, FixtureClock
@@ -63,16 +65,16 @@ class PendingDigest(TypedDict):
     week_start: str  # iso datetime
     week_end: str
     body_md: str
-    items: list[dict]  # DigestItem.model_dump() entries
+    items: list[dict[str, Any]]  # DigestItem.model_dump() entries
 
 
 class State(TypedDict, total=False):
-    last_fetch_ts: str | None        # iso datetime, upper bound of last fetch
-    kb: list[dict]                   # KnowledgeBaseItem.model_dump() entries
-    pending: PendingDigest | None    # digest awaiting approval
-    approval_in_hand: dict | None    # transient: set by await_approval node
+    last_fetch_ts: str | None                   # iso datetime, upper bound of last fetch
+    kb: list[dict[str, Any]]                    # KnowledgeBaseItem.model_dump() entries
+    pending: PendingDigest | None               # digest awaiting approval
+    approval_in_hand: dict[str, Any] | None     # transient: set by await_approval node
     published_weeks: list[str]
-    procedural_notes: list[str]      # R5: lessons from past approvals
+    procedural_notes: list[str]                 # R5: lessons from past approvals
 
 
 def _empty_state() -> State:
@@ -104,18 +106,17 @@ class Deps:
     source_name_by_id: dict[str, str]
 
 
-def build_graph(deps: Deps, saver: AsyncSqliteSaver):  # noqa: PLR0915
+def build_graph(  # noqa: PLR0915
+    deps: Deps, saver: AsyncSqliteSaver,
+) -> CompiledStateGraph[State, Any, State, State]:
     """Construct and compile the agent graph."""
 
     # ---- nodes ----------------------------------------------------------
 
     async def fetch_and_score(state: State) -> dict[str, Any]:
         now_ts = deps.clock.now()
-        since = (
-            datetime.fromisoformat(state["last_fetch_ts"])
-            if state.get("last_fetch_ts")
-            else None
-        )
+        last = state.get("last_fetch_ts")
+        since = datetime.fromisoformat(last) if last else None
         new_events = deps.clock.fetch_events_until(now_ts, since=since)
         deps.events.append("fetch", {"new_events": len(new_events)}, ts=now_ts)
         if not new_events:
@@ -126,7 +127,7 @@ def build_graph(deps: Deps, saver: AsyncSqliteSaver):  # noqa: PLR0915
 
         score_by_id = {row.get("event_id"): float(row.get("relevance_score", 0)) for row in scored}
         kb_existing_ids = {it["event_id"] for it in state.get("kb", [])}
-        new_items: list[dict] = []
+        new_items: list[dict[str, Any]] = []
         for evt in new_events:
             if evt.id in kb_existing_ids:
                 continue
@@ -166,8 +167,10 @@ def build_graph(deps: Deps, saver: AsyncSqliteSaver):  # noqa: PLR0915
         if state.get("pending"):
             return {}
         now_ts = deps.clock.now()
-        # Draft when crossing into a new ISO week (Monday morning) or on Sunday.
-        if now_ts.weekday() not in (0, 6):  # Monday=0, Sunday=6
+        # Draft on Monday morning — the ISO week that just closed (Mon..Sun)
+        # is now fully observable, so week_id_for(now_ts - 7d) is well-defined
+        # and week_start..week_end lines up with one complete ISO week.
+        if now_ts.weekday() != 0:  # Monday=0
             return {}
 
         week_start = (now_ts - timedelta(days=7)).replace(
@@ -288,7 +291,7 @@ def build_graph(deps: Deps, saver: AsyncSqliteSaver):  # noqa: PLR0915
 
     # ---- assembly ------------------------------------------------------
 
-    g: StateGraph = StateGraph(State)
+    g: StateGraph[State, Any, State, State] = StateGraph(State)
     g.add_node("fetch_and_score", fetch_and_score)
     g.add_node("maybe_draft", maybe_draft)
     g.add_node("await_approval", await_approval)
@@ -363,7 +366,7 @@ async def run_loop(
         events=events_log,
         source_name_by_id={s.id: s.name for s in sources},
     )
-    config: dict[str, Any] = {"configurable": {"thread_id": thread_id}}
+    config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
 
     async with AsyncSqliteSaver.from_conn_string(str(sqlite_path)) as saver:
         graph = build_graph(deps, saver)
@@ -371,19 +374,21 @@ async def run_loop(
         snap = await graph.aget_state(config)
         if snap.values:
             log.info("resumed from checkpoint; published=%s", snap.values.get("published_weeks"))
-            seed: dict[str, Any] = {}  # checkpoint already has state
+            # On resume, let LangGraph continue from the checkpoint (None input)
+            # rather than starting a fresh run from START.
+            next_input: State | Command[Any] | None = None
         else:
-            seed = _empty_state()
+            next_input = _empty_state()
         events_log.append("wake", {"reason": "boot", "thread_id": thread_id}, ts=clock.now())
-
-        next_input: dict[str, Any] | Command = seed
 
         while clock.now() < until:
             now_ts = clock.now()
             events_log.append("wake", {"now": now_ts.isoformat()}, ts=now_ts)
 
             await graph.ainvoke(next_input, config)
-            next_input = {}
+            # Subsequent ticks: trigger a fresh run from START; checkpoint
+            # state (kb, pending, etc.) is already loaded by the saver.
+            next_input = State()
 
             # If we paused on an interrupt, poll for approval and resume.
             snap = await graph.aget_state(config)

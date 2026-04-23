@@ -107,6 +107,26 @@ def _published_week_ids(state_dir: Path) -> set[str]:
     }
 
 
+# Fetch cursor — kept separate from the agent-owned progress.md so the harness
+# doesn't have to edit a model-written file. Persisting this means a crash
+# restart won't dump the entire fixture into inbox.json on the first tick.
+def _load_fetch_cursor(state_dir: Path) -> datetime | None:
+    p = state_dir / "fetch_cursor.json"
+    if not p.exists():
+        return None
+    try:
+        data = json.loads(p.read_text())
+        ts = data.get("last_fetch_ts")
+        return datetime.fromisoformat(ts) if ts else None
+    except (json.JSONDecodeError, ValueError):
+        return None
+
+
+def _save_fetch_cursor(state_dir: Path, ts: datetime) -> None:
+    p = state_dir / "fetch_cursor.json"
+    p.write_text(json.dumps({"last_fetch_ts": ts.isoformat()}))
+
+
 # ============== per-tick query =========================================
 
 
@@ -260,7 +280,7 @@ async def run_loop(
 
     events_log.append("wake", {"reason": "boot"}, ts=clock.now())
 
-    last_fetch_ts: datetime | None = None
+    last_fetch_ts: datetime | None = _load_fetch_cursor(state_dir)
     total_cost_usd = 0.0
     total_ticks = 0
     last_error: str | None = None
@@ -272,6 +292,7 @@ async def run_loop(
         new_events_objs = clock.fetch_events_until(now_ts, since=last_fetch_ts)
         new_events_dicts = [e.model_dump(mode="json") for e in new_events_objs]
         last_fetch_ts = now_ts
+        _save_fetch_cursor(state_dir, last_fetch_ts)
 
         result = await _run_one_tick(
             state_dir,

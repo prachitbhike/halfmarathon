@@ -46,7 +46,7 @@ lint:
 	$(UV) run ruff check .
 
 typecheck:
-	$(UV) run mypy task
+	$(UV) run mypy task implementations
 
 # --- smokes (per-impl end-to-end) ---------------------------------------
 
