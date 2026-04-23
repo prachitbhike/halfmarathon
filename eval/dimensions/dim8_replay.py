@@ -31,6 +31,7 @@ from eval.dimensions.base import (
     write_approval_for,
 )
 from eval.impls import ImplSpec
+from eval.scoring import jaccard, mean, text_similarity
 from task.clock import DEFAULT_FIXTURE_START
 from task.types import UserProfile
 
@@ -54,6 +55,19 @@ def _diff_published(state_a: Path, state_b: Path) -> dict[str, str]:
         out[wid] = (
             "identical" if a_files[name].read_bytes() == b_files[name].read_bytes()
             else "differs"
+        )
+    return out
+
+
+def _similarity_per_week(state_a: Path, state_b: Path) -> dict[str, float]:
+    """For weeks present in both runs, text-similarity ratio per week."""
+    out: dict[str, float] = {}
+    a_files = {p.name: p for p in (state_a / "digests").glob("published-week-*.md")}
+    b_files = {p.name: p for p in (state_b / "digests").glob("published-week-*.md")}
+    for name in sorted(set(a_files) & set(b_files)):
+        wid = name.removeprefix("published-").removesuffix(".md")
+        out[wid] = text_similarity(
+            a_files[name].read_text(), b_files[name].read_text()
         )
     return out
 
@@ -111,55 +125,66 @@ async def run(
     pub_a = published_week_ids(run_a)
     pub_b = published_week_ids(run_b)
     diff = _diff_published(run_a, run_b)
+    sims = _similarity_per_week(run_a, run_b)
+
+    # Workflow-level determinism (did the same weeks publish in both runs?)
+    # multiplied by content-level similarity over shared weeks. A divergent
+    # workflow pulls byte-similarity down proportionally — you cannot get a
+    # high score by producing similar text on different weeks.
+    workflow_overlap = jaccard(pub_a, pub_b)
+    byte_similarity = mean(sims.values()) if sims else 0.0
+    accuracy = workflow_overlap * byte_similarity
+    components = {
+        "workflow_overlap": workflow_overlap,
+        "byte_similarity": byte_similarity,
+    }
+    explanation = (
+        "jaccard(run_a_weeks, run_b_weeks) * mean(difflib ratio over shared weeks)"
+    )
 
     metrics = {
         "expected": expected,
         "run_a_published": pub_a,
         "run_b_published": pub_b,
         "diff": diff,
+        "similarity_per_week": {k: round(v, 4) for k, v in sims.items()},
         "run_a_summary": sum_a,
         "run_b_summary": sum_b,
     }
 
-    if pub_a != pub_b:
+    def _result(status: DimensionStatus, notes: str) -> DimensionResult:
         return DimensionResult(
             impl_id=spec.id, dimension_id=DIM_ID, dimension_name=DIM_NAME,
-            status=DimensionStatus.FAIL,
-            notes=(
-                f"Two clean runs published different week sets — non-deterministic "
-                f"at the workflow level. A={pub_a}, B={pub_b}."
-            ),
-            metrics=metrics, elapsed_s=elapsed,
+            status=status, notes=notes, metrics=metrics, elapsed_s=elapsed,
+            accuracy=accuracy, accuracy_components=components,
+            accuracy_explanation=explanation,
+        )
+
+    if pub_a != pub_b:
+        return _result(
+            DimensionStatus.FAIL,
+            f"Two clean runs published different week sets — non-deterministic "
+            f"at the workflow level. A={pub_a}, B={pub_b}.",
         )
 
     statuses = set(diff.values())
     if statuses <= {"identical"}:
-        return DimensionResult(
-            impl_id=spec.id, dimension_id=DIM_ID, dimension_name=DIM_NAME,
-            status=DimensionStatus.PASS,
-            notes=(
-                f"Two clean runs produced byte-identical published digests for "
-                f"all {len(diff)} weeks (deterministic in this configuration)."
-            ),
-            metrics=metrics, elapsed_s=elapsed,
+        return _result(
+            DimensionStatus.PASS,
+            f"Two clean runs produced byte-identical published digests for "
+            f"all {len(diff)} weeks (deterministic in this configuration).",
         )
     if statuses <= {"identical", "differs"}:
         differing = [w for w, s in diff.items() if s == "differs"]
-        return DimensionResult(
-            impl_id=spec.id, dimension_id=DIM_ID, dimension_name=DIM_NAME,
-            status=DimensionStatus.PARTIAL,
-            notes=(
-                f"Same digests published, but {len(differing)} of {len(diff)} have "
-                f"diverging body text (LLM stochasticity is the most likely cause)."
-            ),
-            metrics=metrics, elapsed_s=elapsed,
+        return _result(
+            DimensionStatus.PARTIAL,
+            f"Same digests published, but {len(differing)} of {len(diff)} have "
+            f"diverging body text (similarity={byte_similarity:.3f}; LLM "
+            f"stochasticity is the most likely cause).",
         )
-    # Mix includes missing_in_a / missing_in_b — workflow-level divergence.
-    return DimensionResult(
-        impl_id=spec.id, dimension_id=DIM_ID, dimension_name=DIM_NAME,
-        status=DimensionStatus.FAIL,
-        notes=f"Published-set divergence between runs: {diff}",
-        metrics=metrics, elapsed_s=elapsed,
+    return _result(
+        DimensionStatus.FAIL,
+        f"Published-set divergence between runs: {diff}",
     )
 
 

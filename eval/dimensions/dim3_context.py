@@ -34,6 +34,7 @@ from eval.dimensions.base import (
     write_approval_for,
 )
 from eval.impls import ImplSpec
+from eval.scoring import jaccard, mean
 from task.clock import DEFAULT_FIXTURE_START
 from task.types import UserProfile
 
@@ -92,54 +93,68 @@ async def run(
     elapsed = time.perf_counter() - t0
 
     pub = published_week_ids(base)
+    max_items = profile.max_items_per_digest
+    item_counts = {wid: _digest_item_count(base, wid) for wid in pub}
+    kb_size = result.get("kb_size") or 0
+
     metrics: dict[str, Any] = {
         "expected": expected, "published": pub, "summary": result,
+        "item_counts": item_counts, "kb_size": kb_size,
     }
 
     violations: list[str] = []
-
-    # Invariant 1: digests bounded by max_items_per_digest
-    max_items = profile.max_items_per_digest
-    item_counts = {wid: _digest_item_count(base, wid) for wid in pub}
-    metrics["item_counts"] = item_counts
     for wid, n in item_counts.items():
         if n is not None and n > max_items:
             violations.append(f"{wid} has {n} items, exceeds max_items={max_items}")
-
-    # Invariant 2: KB grows monotonically (we just check final size > 0)
-    kb_size = result.get("kb_size") or 0
-    metrics["kb_size"] = kb_size
     if kb_size == 0:
         violations.append("KB ended empty; expected items from the 40-event fixture")
-
-    # Invariant 3: published weeks match expected
     if set(pub) != set(expected):
         violations.append(
             f"published_weeks mismatch: got {pub}, expected {expected}"
         )
 
-    if violations:
+    # Components: week-set overlap, per-digest bound satisfaction rate, KB non-empty.
+    week_overlap = jaccard(pub, expected)
+    if item_counts:
+        bound_rate = sum(
+            1 for n in item_counts.values() if n is not None and n <= max_items
+        ) / len(item_counts)
+    else:
+        bound_rate = 0.0
+    kb_nonempty = 1.0 if kb_size > 0 else 0.0
+    accuracy = mean([week_overlap, bound_rate, kb_nonempty])
+    components = {
+        "week_overlap": week_overlap,
+        "bound_rate": bound_rate,
+        "kb_nonempty": kb_nonempty,
+    }
+    explanation = (
+        "mean(jaccard(published, expected), fraction of digests ≤ max_items, "
+        "1 if kb nonempty)"
+    )
+
+    def _result(status: DimensionStatus, notes: str) -> DimensionResult:
         return DimensionResult(
             impl_id=spec.id, dimension_id=DIM_ID, dimension_name=DIM_NAME,
-            status=DimensionStatus.PARTIAL,
-            notes=(
-                "Structural invariants partially held: "
-                + "; ".join(violations)
-                + ". (Real compaction quality requires LLM-backed eval on "
-                "a longer fixture; out of scope for offline mode.)"
-            ),
-            metrics=metrics, elapsed_s=elapsed,
+            status=status, notes=notes, metrics=metrics, elapsed_s=elapsed,
+            accuracy=accuracy, accuracy_components=components,
+            accuracy_explanation=explanation,
         )
 
-    return DimensionResult(
-        impl_id=spec.id, dimension_id=DIM_ID, dimension_name=DIM_NAME,
-        status=DimensionStatus.PASS,
-        notes=(
-            f"Structural invariants held: {len(pub)} digests published, "
-            f"each with <= {max_items} items, KB={kb_size}. (Compaction "
-            f"quality not exercised — see findings.)"
-        ),
-        metrics=metrics, elapsed_s=elapsed,
+    if violations:
+        return _result(
+            DimensionStatus.PARTIAL,
+            "Structural invariants partially held: "
+            + "; ".join(violations)
+            + ". (Real compaction quality requires LLM-backed eval on "
+            "a longer fixture; out of scope for offline mode.)",
+        )
+
+    return _result(
+        DimensionStatus.PASS,
+        f"Structural invariants held: {len(pub)} digests published, "
+        f"each with <= {max_items} items, KB={kb_size}. (Compaction "
+        f"quality not exercised — see findings.)",
     )
 
 

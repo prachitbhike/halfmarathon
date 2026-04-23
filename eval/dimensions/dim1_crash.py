@@ -36,6 +36,7 @@ from eval.dimensions.base import (
     write_approval_for,
 )
 from eval.impls import ImplSpec
+from eval.scoring import jaccard, mean, ratio_match
 from task.clock import DEFAULT_FIXTURE_START
 from task.types import UserProfile
 
@@ -113,48 +114,58 @@ async def run(
     # Compare outcomes.
     pub_resumed = published_week_ids(resumed_dir)
     pub_fresh = published_week_ids(fresh_dir)
+    kb_resumed = resumed.get("kb_size") or 0
+    kb_fresh = fresh.get("kb_size") or 0
+
+    # Numerical scoring: Jaccard of resumed-vs-expected (the core ask: did the
+    # restart reach the target end state?) plus KB-size closeness to the fresh
+    # single-pass baseline.
+    week_recovery = jaccard(pub_resumed, expected)
+    kb_match = ratio_match(kb_resumed, kb_fresh)
+    accuracy = mean([week_recovery, kb_match])
+    components = {"week_recovery": week_recovery, "kb_match": kb_match}
+    explanation = (
+        "mean(jaccard(resumed_weeks, expected), ratio_match(kb_resumed, kb_fresh))"
+    )
+
     metrics = {
         "expected_weeks": expected,
         "resumed_published": pub_resumed,
         "fresh_published": pub_fresh,
+        "kb_resumed": kb_resumed,
+        "kb_fresh": kb_fresh,
         "partial_summary": partial,
         "resumed_summary": resumed,
         "fresh_summary": fresh,
     }
 
+    def _result(status: DimensionStatus, notes: str) -> DimensionResult:
+        return DimensionResult(
+            impl_id=spec.id, dimension_id=DIM_ID, dimension_name=DIM_NAME,
+            status=status, notes=notes, metrics=metrics, elapsed_s=elapsed,
+            accuracy=accuracy, accuracy_components=components,
+            accuracy_explanation=explanation,
+        )
+
     if set(pub_resumed) != set(expected) or set(pub_fresh) != set(expected):
-        return DimensionResult(
-            impl_id=spec.id, dimension_id=DIM_ID, dimension_name=DIM_NAME,
-            status=DimensionStatus.FAIL,
-            notes=(
-                f"Published-week mismatch. Expected {expected}, "
-                f"resumed-run produced {pub_resumed}, fresh-run produced {pub_fresh}."
-            ),
-            metrics=metrics, elapsed_s=elapsed,
+        return _result(
+            DimensionStatus.FAIL,
+            f"Published-week mismatch. Expected {expected}, "
+            f"resumed-run produced {pub_resumed}, fresh-run produced {pub_fresh}.",
         )
 
-    kb_resumed = resumed.get("kb_size") or 0
-    kb_fresh = fresh.get("kb_size") or 0
     if kb_resumed != kb_fresh:
-        return DimensionResult(
-            impl_id=spec.id, dimension_id=DIM_ID, dimension_name=DIM_NAME,
-            status=DimensionStatus.PARTIAL,
-            notes=(
-                f"Same digests published after restart, but KB sizes differ "
-                f"(resumed={kb_resumed}, fresh={kb_fresh})."
-            ),
-            metrics=metrics, elapsed_s=elapsed,
+        return _result(
+            DimensionStatus.PARTIAL,
+            f"Same digests published after restart, but KB sizes differ "
+            f"(resumed={kb_resumed}, fresh={kb_fresh}).",
         )
 
-    return DimensionResult(
-        impl_id=spec.id, dimension_id=DIM_ID, dimension_name=DIM_NAME,
-        status=DimensionStatus.PASS,
-        notes=(
-            f"Resume-from-partial reaches the same end state as a fresh single "
-            f"pass: {len(expected)} digests published, KB={kb_resumed} items, no "
-            f"duplicates."
-        ),
-        metrics=metrics, elapsed_s=elapsed,
+    return _result(
+        DimensionStatus.PASS,
+        f"Resume-from-partial reaches the same end state as a fresh single "
+        f"pass: {len(expected)} digests published, KB={kb_resumed} items, no "
+        f"duplicates.",
     )
 
 

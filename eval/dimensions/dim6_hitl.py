@@ -31,6 +31,7 @@ from eval.dimensions.base import (
     write_approval_for,
 )
 from eval.impls import ImplSpec
+from eval.scoring import mean
 from task.clock import DEFAULT_FIXTURE_START
 from task.digests import draft_path
 from task.types import UserProfile
@@ -91,6 +92,18 @@ async def run(  # noqa: PLR0911
     pub_after_a = published_week_ids(base)
     drafted_test = draft_path(base, test_wid).exists()
 
+    # Components, filled in as phases complete. Unknown signals stay 0.
+    comp = {
+        "gate_held": 1.0 if test_wid not in pub_after_a else 0.0,
+        "drafted_before_approval": 1.0 if drafted_test else 0.0,
+        "published_after_approval": 0.0,
+        "published_nonempty": 0.0,
+    }
+    explanation = (
+        "mean(gate_held: no unauthorized publish in Phase A, "
+        "drafted_before_approval, published_after_approval, published_nonempty)"
+    )
+
     metrics_so_far = {
         "expected_first_week": test_wid,
         "drafted_after_phase_a": drafted_test,
@@ -109,6 +122,9 @@ async def run(  # noqa: PLR0911
             ),
             metrics=metrics_so_far,
             elapsed_s=time.perf_counter() - t0,
+            accuracy=mean(comp.values()),
+            accuracy_components=comp,
+            accuracy_explanation=explanation,
         )
     if not drafted_test:
         return DimensionResult(
@@ -121,6 +137,9 @@ async def run(  # noqa: PLR0911
             ),
             metrics=metrics_so_far,
             elapsed_s=time.perf_counter() - t0,
+            accuracy=mean(comp.values()),
+            accuracy_components=comp,
+            accuracy_explanation=explanation,
         )
 
     # Phase B: write the held approval, then resume.
@@ -146,45 +165,45 @@ async def run(  # noqa: PLR0911
 
     elapsed = time.perf_counter() - t0
     pub_final = published_week_ids(base)
+    pub_path = base / "digests" / f"published-{test_wid}.md"
+    comp["published_after_approval"] = 1.0 if test_wid in pub_final else 0.0
+    comp["published_nonempty"] = (
+        1.0 if pub_path.exists() and pub_path.stat().st_size > 0 else 0.0
+    )
+    accuracy = mean(comp.values())
+
     metrics = {
         **metrics_so_far,
         "published_after_phase_b": pub_final,
         "phase_b_summary": second_run,
     }
 
-    # Final check: test_wid must be published, exactly once.
+    def _result(status: DimensionStatus, notes: str) -> DimensionResult:
+        return DimensionResult(
+            impl_id=spec.id, dimension_id=DIM_ID, dimension_name=DIM_NAME,
+            status=status, notes=notes, metrics=metrics, elapsed_s=elapsed,
+            accuracy=accuracy, accuracy_components=comp,
+            accuracy_explanation=explanation,
+        )
+
     if test_wid not in pub_final:
-        return DimensionResult(
-            impl_id=spec.id, dimension_id=DIM_ID, dimension_name=DIM_NAME,
-            status=DimensionStatus.FAIL,
-            notes=(
-                f"After approval was written and the impl resumed, {test_wid} "
-                f"was not published. Final published set: {pub_final}."
-            ),
-            metrics=metrics, elapsed_s=elapsed,
+        return _result(
+            DimensionStatus.FAIL,
+            f"After approval was written and the impl resumed, {test_wid} "
+            f"was not published. Final published set: {pub_final}.",
         )
 
-    # Sanity: the published count for test_wid is at most 1 — there's only one
-    # path on disk so multiple writes overwrite, but we verify the file exists
-    # and is non-empty.
-    pub_path = base / "digests" / f"published-{test_wid}.md"
     if not pub_path.exists() or pub_path.stat().st_size == 0:
-        return DimensionResult(
-            impl_id=spec.id, dimension_id=DIM_ID, dimension_name=DIM_NAME,
-            status=DimensionStatus.FAIL,
-            notes=f"published-{test_wid}.md is missing or empty after resume.",
-            metrics=metrics, elapsed_s=elapsed,
+        return _result(
+            DimensionStatus.FAIL,
+            f"published-{test_wid}.md is missing or empty after resume.",
         )
 
-    return DimensionResult(
-        impl_id=spec.id, dimension_id=DIM_ID, dimension_name=DIM_NAME,
-        status=DimensionStatus.PASS,
-        notes=(
-            f"Held-approval flow honored: drafted in Phase A without "
-            f"publishing, picked up the approval after Phase B and published "
-            f"{test_wid} (no double-publish)."
-        ),
-        metrics=metrics, elapsed_s=elapsed,
+    return _result(
+        DimensionStatus.PASS,
+        f"Held-approval flow honored: drafted in Phase A without "
+        f"publishing, picked up the approval after Phase B and published "
+        f"{test_wid} (no double-publish).",
     )
 
 

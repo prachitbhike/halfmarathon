@@ -34,6 +34,7 @@ from eval.dimensions.base import (
 )
 from eval.fixtures_override import build_override
 from eval.impls import ImplSpec
+from eval.scoring import clamp01
 from task.clock import DEFAULT_FIXTURE_START
 from task.types import UserProfile
 
@@ -135,6 +136,11 @@ async def run(
     n_offtopic = len(pub_offtopic)
     ratio = (n_offtopic / n_published) if n_published else 0.0
 
+    on_topic_rate = clamp01(1.0 - ratio) if n_published else 0.0
+    accuracy = on_topic_rate
+    components = {"on_topic_rate": on_topic_rate}
+    explanation = "1 - (off-topic items / published items)"
+
     metrics: dict[str, Any] = {
         "n_offtopic_in_fixture": len(offtopic_urls),
         "n_published": n_published,
@@ -144,13 +150,16 @@ async def run(
         "summary": result,
     }
 
-    if n_published == 0:
+    def _result(status: DimensionStatus, notes: str) -> DimensionResult:
         return DimensionResult(
             impl_id=spec.id, dimension_id=DIM_ID, dimension_name=DIM_NAME,
-            status=DimensionStatus.FAIL,
-            notes="No published digest items to evaluate.",
-            metrics=metrics, elapsed_s=elapsed,
+            status=status, notes=notes, metrics=metrics, elapsed_s=elapsed,
+            accuracy=accuracy, accuracy_components=components,
+            accuracy_explanation=explanation,
         )
+
+    if n_published == 0:
+        return _result(DimensionStatus.FAIL, "No published digest items to evaluate.")
 
     if ratio <= 0.10:
         status = DimensionStatus.PASS
@@ -162,17 +171,13 @@ async def run(
         status = DimensionStatus.FAIL
         verdict = "above the 25% threshold — significant drift"
 
-    return DimensionResult(
-        impl_id=spec.id, dimension_id=DIM_ID, dimension_name=DIM_NAME,
-        status=status,
-        notes=(
-            f"{n_offtopic}/{n_published} published items are off-topic "
-            f"(ratio={ratio:.2f}); {verdict}. Adversarial overlay added "
-            f"{len(adversarial_events)} deliberately off-topic events; "
-            f"{len(offtopic_urls)} total off-topic events in the merged "
-            f"timeline."
-        ),
-        metrics=metrics, elapsed_s=elapsed,
+    return _result(
+        status,
+        f"{n_offtopic}/{n_published} published items are off-topic "
+        f"(ratio={ratio:.2f}); {verdict}. Adversarial overlay added "
+        f"{len(adversarial_events)} deliberately off-topic events; "
+        f"{len(offtopic_urls)} total off-topic events in the merged "
+        f"timeline.",
     )
 
 

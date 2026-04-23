@@ -41,6 +41,7 @@ from eval.dimensions.base import (
 )
 from eval.fixtures_override import build_override
 from eval.impls import ImplSpec
+from eval.scoring import clamp01
 from task.clock import DEFAULT_FIXTURE_START
 from task.types import UserProfile
 
@@ -139,46 +140,49 @@ async def run(  # noqa: PLR0911
         url for url in deleted_urls if any(url in body for body in pub_bodies)
     ]
 
+    n_targets = len(deleted_urls)
+    leak_rate = (len(references_to_deleted) / n_targets) if n_targets else 0.0
+    freshness = 0.0 if not pub_bodies else clamp01(1.0 - leak_rate)
+    accuracy = freshness
+    components = {"freshness": freshness, "leak_rate": leak_rate}
+    explanation = "1 - (leaked_deleted_urls / total_deletion_targets)"
+
     metrics: dict[str, Any] = {
         "deletion_targets": delete_ids,
         "phase_a_end": fixture_phase_a_end.isoformat(),
         "published_count": len(pub_bodies),
         "stale_references": references_to_deleted,
+        "leak_rate": round(leak_rate, 3),
         "summary": result,
     }
 
-    if not pub_bodies:
+    def _result(status: DimensionStatus, notes: str) -> DimensionResult:
         return DimensionResult(
             impl_id=spec.id, dimension_id=DIM_ID, dimension_name=DIM_NAME,
-            status=DimensionStatus.FAIL,
-            notes="No published digests to inspect.",
-            metrics=metrics, elapsed_s=elapsed,
+            status=status, notes=notes, metrics=metrics, elapsed_s=elapsed,
+            accuracy=accuracy, accuracy_components=components,
+            accuracy_explanation=explanation,
         )
+
+    if not pub_bodies:
+        return _result(DimensionStatus.FAIL, "No published digests to inspect.")
 
     if not references_to_deleted:
-        return DimensionResult(
-            impl_id=spec.id, dimension_id=DIM_ID, dimension_name=DIM_NAME,
-            status=DimensionStatus.PASS,
-            notes=(
-                f"Impl completed both phases without referencing any "
-                f"deleted events ({len(deleted_urls)} deletion targets, "
-                f"{len(pub_bodies)} published digests inspected). "
-                f"Genuine refresh detected on resume."
-            ),
-            metrics=metrics, elapsed_s=elapsed,
+        return _result(
+            DimensionStatus.PASS,
+            f"Impl completed both phases without referencing any "
+            f"deleted events ({len(deleted_urls)} deletion targets, "
+            f"{len(pub_bodies)} published digests inspected). "
+            f"Genuine refresh detected on resume.",
         )
 
-    return DimensionResult(
-        impl_id=spec.id, dimension_id=DIM_ID, dimension_name=DIM_NAME,
-        status=DimensionStatus.PARTIAL,
-        notes=(
-            f"Impl completed, but {len(references_to_deleted)} of "
-            f"{len(deleted_urls)} deleted events were referenced in "
-            f"published digests after Phase B. The KB carried items "
-            f"forward without re-checking the source. Right behavior: "
-            f"re-fetch on resume and drop or flag stale references."
-        ),
-        metrics=metrics, elapsed_s=elapsed,
+    return _result(
+        DimensionStatus.PARTIAL,
+        f"Impl completed, but {len(references_to_deleted)} of "
+        f"{len(deleted_urls)} deleted events were referenced in "
+        f"published digests after Phase B. The KB carried items "
+        f"forward without re-checking the source. Right behavior: "
+        f"re-fetch on resume and drop or flag stale references.",
     )
 
 
