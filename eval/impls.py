@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import os
-from collections.abc import Awaitable, Callable, Iterable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -237,7 +237,3 @@ __all__ = [
     "find_impl",
     "gather_run",
 ]
-
-
-# Mark `Iterable` as used to keep type tooling happy with future signatures.
-_ = Iterable

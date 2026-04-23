@@ -62,7 +62,12 @@ async def run(
 
     fixture_start = DEFAULT_FIXTURE_START
     fixture_until = DEFAULT_FIXTURE_START + timedelta(days=15)
-    fixture_mid = DEFAULT_FIXTURE_START + timedelta(days=6)  # before first Sunday
+    # Fixture starts Wed 2026-04-01. First Sunday (the first digest-draft
+    # wake) is 2026-04-05. Split on Saturday 2026-04-04 so Run A has 3 days
+    # of fetches + KB under its belt but has *not* drafted or published
+    # anything — the resume test then genuinely exercises state handoff
+    # rather than running against a clean week boundary.
+    fixture_mid = DEFAULT_FIXTURE_START + timedelta(days=3)
     speed = 86400.0
 
     expected = expected_week_ids(fixture_start, fixture_until)

@@ -3,6 +3,9 @@
 All non-deterministic work the workflow needs (filesystem, model calls, fixture
 clock reads) lives here. Each activity is replayed-from-history on workflow
 resume, so workflows themselves see them as deterministic functions of input.
+
+Event-log writes are guarded by ``activity.info().attempt == 1`` so that
+Temporal retries don't produce duplicate log lines.
 """
 
 from __future__ import annotations
@@ -14,7 +17,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from pydantic import HttpUrl
 from temporalio import activity
 
 from implementations.temporal_pydantic.agent import (
@@ -42,7 +44,6 @@ from task.types import (
     DigestItem,
     DigestStatus,
     KnowledgeBaseItem,
-    Source,
     SourceEvent,
     UserProfile,
 )
@@ -52,8 +53,122 @@ ROOT = Path(__file__).resolve().parents[2]
 FIXTURES = ROOT / "task" / "fixtures"
 
 
+def _first_attempt() -> bool:
+    """True on the initial activity attempt; False on Temporal retries.
+
+    Used to guard append-only side effects (event log) so that a retried
+    activity doesn't duplicate entries. The workflow history replay story
+    for the *main* side effects (publishing a digest, writing KB) is
+    already idempotent by filename or key; only the event log was append-
+    only and needed this guard.
+    """
+    try:
+        return activity.info().attempt == 1
+    except RuntimeError:
+        # Called outside of an activity context (tests/smoke). Treat as
+        # first-attempt so local callers still see their writes.
+        return True
+
+
+def _load_kb(state_dir: Path) -> list[dict[str, Any]]:
+    p = state_dir / "kb.json"
+    if not p.exists():
+        return []
+    try:
+        data = json.loads(p.read_text())
+    except json.JSONDecodeError:
+        return []
+    return data if isinstance(data, list) else []
+
+
+def _save_kb(state_dir: Path, kb: list[dict[str, Any]]) -> None:
+    p = state_dir / "kb.json"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps(kb, indent=2, default=str))
+
+
+def _load_meta(state_dir: Path) -> dict[str, Any]:
+    p = state_dir / "run_meta.json"
+    if not p.exists():
+        return {}
+    try:
+        data = json.loads(p.read_text())
+    except json.JSONDecodeError:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _save_meta(state_dir: Path, meta: dict[str, Any]) -> None:
+    p = state_dir / "run_meta.json"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps(meta, indent=2, default=str))
+
+
+def _published_week_ids(state_dir: Path) -> list[str]:
+    digests = state_dir / "digests"
+    if not digests.exists():
+        return []
+    return sorted(
+        p.stem.removeprefix("published-")
+        for p in digests.glob("published-week-*.md")
+    )
+
+
 # Activities take pydantic models as inputs/outputs (PydanticPayloadConverter
 # is registered on the worker so they serialize cleanly).
+
+
+# ---- state recovery ------------------------------------------------------
+
+
+@dataclass
+class LoadPriorStateInput:
+    state_dir: str
+
+
+@dataclass
+class LoadPriorStateOutput:
+    kb_json: str                 # list[KnowledgeBaseItem.model_dump()]
+    published_weeks: list[str]
+    last_fetch_iso: str | None
+    procedural_notes: list[str]
+
+
+@activity.defn
+async def load_prior_state(req: LoadPriorStateInput) -> LoadPriorStateOutput:
+    """Reconstruct workflow state from state_dir.
+
+    Called once at workflow boot so that a fresh workflow execution (new
+    Temporal run id, same state_dir) resumes where the previous run left
+    off. This mirrors what a checkpointer-backed framework does implicitly.
+    """
+    state_dir = Path(req.state_dir)
+    state_dir.mkdir(parents=True, exist_ok=True)
+    meta = _load_meta(state_dir)
+    return LoadPriorStateOutput(
+        kb_json=json.dumps(_load_kb(state_dir)),
+        published_weeks=_published_week_ids(state_dir),
+        last_fetch_iso=meta.get("last_fetch_iso"),
+        procedural_notes=list(meta.get("procedural_notes") or []),
+    )
+
+
+@dataclass
+class PersistMetaInput:
+    state_dir: str
+    last_fetch_iso: str | None
+    procedural_notes: list[str]
+
+
+@activity.defn
+async def persist_meta(req: PersistMetaInput) -> None:
+    _save_meta(
+        Path(req.state_dir),
+        {
+            "last_fetch_iso": req.last_fetch_iso,
+            "procedural_notes": list(req.procedural_notes),
+        },
+    )
 
 
 @dataclass
@@ -81,17 +196,20 @@ async def fetch_events(req: FetchEventsInput) -> FetchEventsOutput:
         fixture_start=datetime.fromisoformat(req.fixture_start_iso),
         speed=req.speed,
     )
-    # The activity is being called at workflow-fixture-now; we don't need
-    # clock.start() since we evaluate at fixture_now_iso explicitly.
+    # `fetch_events_until` evaluates at fixture_now_iso explicitly and does
+    # not need the wall-clock anchor; still, call start() so the clock is
+    # in a consistent state if future callers read clock.now().
+    clock.start()
     fixture_now = datetime.fromisoformat(req.fixture_now_iso)
     since = (
         datetime.fromisoformat(req.last_fetch_iso) if req.last_fetch_iso else None
     )
     events = clock.fetch_events_until(fixture_now, since=since)
     payload = json.dumps([e.model_dump(mode="json") for e in events])
-    EventLog(Path(req.state_dir) / "events.jsonl").append(
-        "fetch", {"new_events": len(events)}, ts=fixture_now,
-    )
+    if _first_attempt():
+        EventLog(Path(req.state_dir) / "events.jsonl").append(
+            "fetch", {"new_events": len(events)}, ts=fixture_now,
+        )
     return FetchEventsOutput(events_json=payload, count=len(events))
 
 
@@ -145,7 +263,10 @@ async def score_and_summarize(req: ScoreSummarizeInput) -> ScoreSummarizeOutput:
         result = await agent.run(prompt)
         out: RelevanceScores = result.output
         scores = [r.model_dump() for r in out.items]
-    events_log.append("llm_call", {"purpose": "relevance", "n": len(events)}, ts=fixture_now)
+    if _first_attempt():
+        events_log.append(
+            "llm_call", {"purpose": "relevance", "n": len(events)}, ts=fixture_now,
+        )
 
     score_by_id = {row.get("event_id"): float(row.get("relevance_score", 0)) for row in scores}
 
@@ -170,9 +291,11 @@ async def score_and_summarize(req: ScoreSummarizeInput) -> ScoreSummarizeOutput:
             )
             result = await agent.run(prompt)
             summary = result.output.strip()
-        events_log.append(
-            "llm_call", {"purpose": "summarize", "event_id": evt.id}, ts=fixture_now,
-        )
+        if _first_attempt():
+            events_log.append(
+                "llm_call", {"purpose": "summarize", "event_id": evt.id},
+                ts=fixture_now,
+            )
         kbi = KnowledgeBaseItem(
             event_id=evt.id, source_id=evt.source_id,
             fixture_timestamp=evt.fixture_timestamp,
@@ -180,9 +303,21 @@ async def score_and_summarize(req: ScoreSummarizeInput) -> ScoreSummarizeOutput:
             relevance_score=score,
         )
         new_items.append(kbi.model_dump(mode="json"))
-        events_log.append(
-            "summary", {"event_id": evt.id, "score": score}, ts=fixture_now,
-        )
+        if _first_attempt():
+            events_log.append(
+                "summary", {"event_id": evt.id, "score": score}, ts=fixture_now,
+            )
+
+    # Persist KB to disk so a subsequent workflow execution (same state_dir,
+    # new run id) can reload it via load_prior_state. Writing the full file
+    # is idempotent on retry.
+    existing_kb = _load_kb(state_dir)
+    existing_ids = {it.get("event_id") for it in existing_kb}
+    for it in new_items:
+        if it.get("event_id") not in existing_ids:
+            existing_kb.append(it)
+            existing_ids.add(it.get("event_id"))
+    _save_kb(state_dir, existing_kb)
 
     return ScoreSummarizeOutput(new_kb_items_json=json.dumps(new_items))
 
@@ -229,9 +364,12 @@ async def draft_digest(req: DraftDigestInput) -> DraftDigestOutput:
         drafted_at=fixture_now,
     )
     write_draft(state_dir, digest)
-    EventLog(state_dir / "events.jsonl").append(
-        "digest_draft", {"week_id": req.week_id, "items": len(items)}, ts=fixture_now,
-    )
+    if _first_attempt():
+        EventLog(state_dir / "events.jsonl").append(
+            "digest_draft",
+            {"week_id": req.week_id, "items": len(items)},
+            ts=fixture_now,
+        )
     pending = {
         "week_id": req.week_id,
         "week_start": req.week_start_iso,
@@ -290,9 +428,10 @@ async def publish(req: PublishInput) -> PublishOutput:
     events_log = EventLog(state_dir / "events.jsonl")
 
     if appr.status != ApprovalStatus.APPROVED:
-        events_log.append(
-            "approval", {"week_id": wid, "status": "rejected"}, ts=fixture_now,
-        )
+        if _first_attempt():
+            events_log.append(
+                "approval", {"week_id": wid, "status": "rejected"}, ts=fixture_now,
+            )
         return PublishOutput(week_id=wid, published=False, feedback=appr.feedback)
 
     digest = Digest(
@@ -302,10 +441,11 @@ async def publish(req: PublishInput) -> PublishOutput:
         drafted_at=fixture_now, approved_at=appr.received_at,
     )
     publish_digest(state_dir, digest, appr)
-    events_log.append("publish", {"week_id": wid}, ts=fixture_now)
-    events_log.append(
-        "approval", {"week_id": wid, "status": "approved"}, ts=fixture_now,
-    )
+    if _first_attempt():
+        events_log.append("publish", {"week_id": wid}, ts=fixture_now)
+        events_log.append(
+            "approval", {"week_id": wid, "status": "approved"}, ts=fixture_now,
+        )
     return PublishOutput(week_id=wid, published=True, feedback=appr.feedback)
 
 
@@ -319,9 +459,14 @@ class WriteEventInput:
 
 @activity.defn
 async def write_event_log(req: WriteEventInput) -> None:
-    EventLog(Path(req.state_dir) / "events.jsonl").append(
-        req.kind, json.loads(req.payload_json), ts=datetime.fromisoformat(req.ts_iso),
-    )
+    # The workflow uses this for "wake" events. Retries must not duplicate,
+    # so we guard on first attempt too.
+    if _first_attempt():
+        EventLog(Path(req.state_dir) / "events.jsonl").append(
+            req.kind,
+            json.loads(req.payload_json),
+            ts=datetime.fromisoformat(req.ts_iso),
+        )
 
 
 # All activities the worker should register.
@@ -332,6 +477,8 @@ ALL_ACTIVITIES = [
     poll_approval,
     publish,
     write_event_log,
+    load_prior_state,
+    persist_meta,
 ]
 
 
@@ -342,6 +489,9 @@ __all__ = [
     "DraftDigestOutput",
     "FetchEventsInput",
     "FetchEventsOutput",
+    "LoadPriorStateInput",
+    "LoadPriorStateOutput",
+    "PersistMetaInput",
     "PollApprovalInput",
     "PollApprovalOutput",
     "PublishInput",
@@ -352,12 +502,10 @@ __all__ = [
     # activities
     "draft_digest",
     "fetch_events",
+    "load_prior_state",
+    "persist_meta",
     "poll_approval",
     "publish",
     "score_and_summarize",
     "write_event_log",
 ]
-
-
-# Touch unused-but-public types so ruff doesn't complain in this module.
-_ = HttpUrl, Source

@@ -102,11 +102,22 @@ def _save_meta(state_dir: Path, meta: dict[str, Any]) -> None:
 
 
 def _check_letta_reachable(base_url: str) -> bool:
+    """True iff ``base_url`` answers a known Letta API route with 2xx/4xx.
+
+    We hit ``/v1/agents/`` (the list endpoint) — 200 on a live server,
+    404 only if the route genuinely doesn't exist. A generic HTTP server
+    listening on the same port would typically 404 the ``/v1`` prefix or
+    return HTML, so we additionally look at the ``content-type`` header
+    to avoid false positives from unrelated services.
+    """
     try:
-        r = httpx.get(f"{base_url.rstrip('/')}/v1/health", timeout=3.0)
-        return r.status_code < 500
+        r = httpx.get(f"{base_url.rstrip('/')}/v1/agents/", timeout=3.0)
     except httpx.HTTPError:
         return False
+    if r.status_code >= 500:
+        return False
+    ctype = r.headers.get("content-type", "").lower()
+    return "application/json" in ctype
 
 
 def _get_or_create_agent(client: Letta, *, name: str, profile: UserProfile) -> str:
@@ -149,6 +160,23 @@ def _get_or_create_agent(client: Letta, *, name: str, profile: UserProfile) -> s
     return agent.id
 
 
+def _read_procedural_block(client: Letta, agent_id: str) -> str | None:
+    """Return the current value of the agent's procedural_notes memory block.
+
+    Used after feedback messages to verify the agent actually mutated its
+    own memory. Returns None on API failure so callers can tell the
+    difference between "unchanged" and "could not read".
+    """
+    try:
+        block = client.agents.blocks.retrieve(
+            agent_id=agent_id, block_label="procedural_notes",
+        )
+    except Exception as exc:
+        log.warning("could not read procedural_notes block: %s", exc)
+        return None
+    return getattr(block, "value", None)
+
+
 # ============== response parsing =======================================
 
 
@@ -178,7 +206,15 @@ def _extract_json_array(text: str) -> list[dict[str, Any]]:
 
 
 def _agent_reply_text(response: Any) -> str:
-    """Pull the assistant's textual content out of a Letta response."""
+    """Pull the assistant's textual content out of a Letta response.
+
+    We pass ``use_assistant_message=True`` on every create() call, so the
+    server collapses ``send_message`` tool calls back into
+    ``assistant_message`` entries. We also handle the raw tool-call form
+    (``message_type == "tool_call_message"``, ``tool_call.name ==
+    "send_message"``) so callers that don't set that flag still get their
+    text — and so the fallback is easy to debug if Letta changes.
+    """
     parts: list[str] = []
     for msg in getattr(response, "messages", []) or []:
         msg_type = getattr(msg, "message_type", "") or getattr(msg, "type", "")
@@ -192,15 +228,19 @@ def _agent_reply_text(response: Any) -> str:
                         parts.append(c.get("text", ""))
                     elif hasattr(c, "text"):
                         parts.append(c.text)
-        elif msg_type == "send_message":
-            args = getattr(msg, "tool_call", None)
-            if args is not None and getattr(args, "arguments", None):
-                try:
-                    payload = json.loads(args.arguments)
-                except (json.JSONDecodeError, TypeError):
-                    payload = None
-                if isinstance(payload, dict) and "message" in payload:
-                    parts.append(str(payload["message"]))
+        elif msg_type == "tool_call_message":
+            tc = getattr(msg, "tool_call", None)
+            if tc is None or getattr(tc, "name", None) != "send_message":
+                continue
+            raw_args = getattr(tc, "arguments", None)
+            if not raw_args:
+                continue
+            try:
+                payload = json.loads(raw_args)
+            except (json.JSONDecodeError, TypeError):
+                continue
+            if isinstance(payload, dict) and "message" in payload:
+                parts.append(str(payload["message"]))
     return "\n".join(parts).strip()
 
 
@@ -441,7 +481,14 @@ async def run_loop(  # noqa: PLR0915, PLR0912
                 if appr.status == ApprovalStatus.APPROVED:
                     published_weeks.append(pending["week_id"])
                 procedural_notes.append(feedback_summary)
-                # Tell the agent so its memory of what's interesting evolves.
+                # Drive the agent's stateful memory update, then read the
+                # procedural_notes block back so we can tell whether the
+                # agent actually mutated its memory. The resulting block
+                # value (or a "(unchanged)" marker) is recorded in
+                # procedural_notes so the eval can see what the agent's
+                # identity now holds — this is what "stateful-by-design"
+                # means to test.
+                before_value = _read_procedural_block(client, agent_id)
                 try:
                     client.agents.messages.create(
                         agent_id=agent_id,
@@ -450,13 +497,24 @@ async def run_loop(  # noqa: PLR0915, PLR0912
                             "content": (
                                 f"User feedback on the latest digest: {feedback_summary}. "
                                 "Update your procedural_notes memory with what to keep "
-                                "doing or change next time."
+                                "doing or change next time. Use the "
+                                "core_memory_replace tool on the "
+                                "procedural_notes block."
                             ),
                         }],
                         use_assistant_message=True,
                     )
                 except Exception as exc:
                     log.warning("feedback message to Letta failed: %s", exc)
+                after_value = _read_procedural_block(client, agent_id)
+                if after_value is not None and after_value != before_value:
+                    procedural_notes.append(
+                        f"[agent-memory:{pending['week_id']}] {after_value}"
+                    )
+                else:
+                    procedural_notes.append(
+                        f"[agent-memory:{pending['week_id']}] (unchanged)"
+                    )
                 pending = None
 
         # persist meta + kb

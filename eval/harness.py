@@ -13,7 +13,6 @@ import argparse
 import asyncio
 import json
 import logging
-import os
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -21,7 +20,6 @@ from pathlib import Path
 from eval.dimensions import (
     DimensionResult,
     DimensionStatus,
-    base,
     dim1_crash,
     dim2_multiday,
     dim3_context,
@@ -177,10 +175,6 @@ def main() -> None:
     # Defer to report.py for the matrix render — keep harness lean.
     print("To render: make report  (writes results/eval-matrix.md)")
 
-
-# Touch base so unused-import lint doesn't trip.
-_ = base
-_ = os
 
 if __name__ == "__main__":
     main()
