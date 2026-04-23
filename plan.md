@@ -6,12 +6,12 @@
 
 | # | Decision | Choice | Rationale |
 |---|---|---|---|
-| 1 | Language | **Python only** | Largest agent ecosystem; all four picks support it natively |
-| 2 | Model | **Claude across all four** (Opus 4.7 + Sonnet 4.6 as appropriate) | Holds model quality constant — comparison is about the framework |
+| 1 | Language | **Python only** | Largest agent ecosystem; all three picks support it natively |
+| 2 | Model | **Claude across all three** (Opus 4.7 + Sonnet 4.6 as appropriate) | Holds model quality constant — comparison is about the framework |
 | 3 | Realism bar | **"What a builder would see"** | No bench-tuning. Default configs, default storage backends, default examples. If a framework needs hand-tuning to look good, that itself is a finding. |
 | 4 | Task | **Release Radar** | Confirmed |
 | 5 | Wall-clock budget | **8h compressed** instead of 7-day real-time | Use accelerated-time fixtures for the multi-week dimensions (replay 2 weeks of source events in 8h). See §6.1. |
-| 6 | Hosting | **Hosted sandbox (e2b or equivalent)** for agent runtime | See §6.1 — e2b sandboxes for agent processes; supporting infra (Postgres, Temporal, Letta server) co-hosted or external. |
+| 6 | Hosting | **Hosted sandbox (e2b or equivalent)** for agent runtime | See §6.1 — e2b sandboxes for agent processes; supporting infra (Postgres, Temporal) co-hosted or external. |
 | 7 | Repo | **Public** | Findings + implementations open-sourced; no Anthropic-internal data in the repo. |
 
 ## Guiding principle: realistic, not flattering
@@ -22,15 +22,14 @@ Every implementation uses **the recommended setup from each framework's own docs
 
 ## 1. The shape of the test app
 
-**One canonical task, implemented N times.** Same inputs, same evaluation harness, four orthogonal implementations. The deliverable is a repo where you can:
+**One canonical task, implemented N times.** Same inputs, same evaluation harness, three orthogonal implementations. The deliverable is a repo where you can:
 
 ```bash
 make run-langgraph
 make run-temporal
-make run-letta
 make run-claude-sdk
 
-make eval        # scores all four against the 8 test dimensions
+make eval        # scores all three against the 8 test dimensions
 make report      # generates comparison matrix
 ```
 
@@ -47,14 +46,13 @@ halfmarathon/
   implementations/
     langgraph/
     temporal-pydantic/
-    letta/
     claude-sdk/
   eval/                    # dimension tests, scoring, report generator
     dimensions/
     harness.py
     report.py
   infra/
-    docker-compose.yml     # postgres, temporal, letta server, etc.
+    docker-compose.yml     # postgres, temporal, etc.
   results/
 ```
 
@@ -95,22 +93,21 @@ It also has the practical virtue of being a thing the user might *actually want*
 
 ## 3. Implementations to build
 
-Per the research, four orthogonal philosophies. Concrete picks:
+Per the research, three orthogonal philosophies. Concrete picks:
 
 | # | Approach | Stack | What we're testing |
 |---|---|---|---|
 | 1 | **Workflow engine + thin agent** | Pydantic AI + Temporal (Python; OSS server local) | Event-sourced replay, polyglot durability, deterministic orchestrator + non-deterministic activities |
 | 2 | **Graph + checkpointer** | LangGraph + Postgres checkpointer | First-class HITL `interrupt()`, time-travel checkpoints, cron jobs |
-| 3 | **Stateful-by-design agent server** | Letta (self-hosted, Postgres-backed) | Memory blocks, recall/archival memory, server-resident identity |
-| 4 | **Vendor-managed harness pattern** | Claude Agent SDK with file-based memory (Anthropic's harness) | `claude-progress.txt` + git-as-memory + sub-agents pattern, no external orchestrator |
+| 3 | **Vendor-managed harness pattern** | Claude Agent SDK with file-based memory (Anthropic's harness) | `claude-progress.txt` + git-as-memory + sub-agents pattern, no external orchestrator |
 
-All four use Anthropic Claude (Opus 4.7 + Sonnet 4.6 as appropriate) so model quality is held constant.
+All three use Anthropic Claude (Opus 4.7 + Sonnet 4.6 as appropriate) so model quality is held constant.
 
 ### Reasoned omissions
 
 - **Convex / Cloudflare Agents / Mastra** — would require a TS implementation; doable as a v2 but doubles surface area. Skip for now.
 - **OpenAI Agents SDK + Temporal** — overlaps philosophically with Pydantic AI + Temporal. Pick one.
-- **Anthropic Managed Agents** — $0.08/runtime-hour × 4 implementations × multi-week test = $$$. Maybe a single one-off run as a separate apples-to-oranges exhibit.
+- **Anthropic Managed Agents** — $0.08/runtime-hour × 3 implementations × multi-week test = $$$. Maybe a single one-off run as a separate apples-to-oranges exhibit.
 - **CrewAI / AutoGen / Agno / etc.** — out of scope (not built for long-running).
 
 ---
@@ -140,7 +137,7 @@ Score per dimension: **pass / partial / fail / not applicable**, with a one-para
 
 A successful test app produces:
 
-1. **Working code** for all four implementations, runnable from one repo.
+1. **Working code** for all three implementations, runnable from one repo.
 2. **Eval matrix** as a markdown table, scoring each on the 8 dimensions, with notes.
 3. **Findings document** (`findings.md`) — the actual "honest take" after running the eval. Where each approach shines, where it breaks, what surprised us, what would I pick for what use case.
 4. **Cost ledger** — actual $$ spent during the multi-day run, broken down by framework.
@@ -149,7 +146,7 @@ A successful test app produces:
 Explicit non-goals:
 - Not a benchmark suite (sample size = 1 task)
 - Not a tutorial / docs site
-- Not exhaustive across every framework — four picks, deeply
+- Not exhaustive across every framework — three picks, deeply
 
 ---
 
@@ -168,12 +165,11 @@ Each implementation runs as a process in its own **e2b sandbox** (or equivalent 
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│  e2b sandbox per impl  (one of 4)                   │
+│  e2b sandbox per impl  (one of 3)                   │
 │  ┌────────────────────────────────────────────────┐ │
 │  │  Agent process (LangGraph / Pydantic AI / etc) │ │
 │  │  + local Postgres/SQLite if needed             │ │
 │  │  + local Temporal dev server (impl 2)          │ │
-│  │  + local Letta server (impl 3)                 │ │
 │  └────────────────────────────────────────────────┘ │
 │           │ Anthropic API                           │
 │           │ Source feeds (frozen fixtures)          │
@@ -224,13 +220,12 @@ I'd phase this so we get a working comparison quickly, then deepen.
 - These three are deterministic and fast (crash, HITL, replay).
 - First version of comparison matrix.
 
-### Phase 3 — Two more implementations (1–2 days each)
+### Phase 3 — One more implementation (1–2 days)
 - Pydantic AI + Temporal
-- Letta
 
 ### Phase 4 — The 8h compressed run (1 day per impl, runs overnight in parallel)
-- Run dimensions 2, 3, 4, 5, 7 against all four using the fixture clock from §6.2.
-- All four sandboxes run in parallel; results land in shared `results/`.
+- Run dimensions 2, 3, 4, 5, 7 against all three using the fixture clock from §6.2.
+- All three sandboxes run in parallel; results land in shared `results/`.
 - Cost ledger from real Anthropic API spend.
 
 ### Phase 5 — Findings + writeup (1 day)
@@ -242,7 +237,6 @@ I'd phase this so we get a working comparison quickly, then deepen.
 
 ## 8. Risks I want to flag now
 
-- **Letta server operational tax.** It's a real Postgres-backed server; takes the most setup. If self-hosting in e2b is painful, fall back to Letta Cloud for parity (and call out the difference in findings).
 - **Temporal in an e2b sandbox.** Temporal dev server runs fine in a single container; HA needs Temporal Cloud. For this comparison, dev server is enough — production-HA story goes in findings.
 - **Cross-framework apples-to-apples is genuinely hard.** Each framework will want to interpret the task slightly differently. The `task/spec.md` discipline + shared `task/types.py` is what keeps it honest.
 - **Compressed time hides cache TTL costs.** Documented in §6.2 — we'll run a small uncompressed cost comparison (dim 9) to surface this.

@@ -59,7 +59,7 @@ The agent fetches events through `task.clock.fetch_events(since: datetime, until
   "user_id": "demo",
   "interests": [
     "long-running AI agents",
-    "agent frameworks (LangGraph, Letta, Pydantic AI, Claude Agent SDK)",
+    "agent frameworks (LangGraph, Pydantic AI, Claude Agent SDK)",
     "durable execution (Temporal, DBOS, Restate)",
     "agent memory systems"
   ],
@@ -108,7 +108,7 @@ For each new event since the last wake:
 ### R5. Procedural learning
 
 - Approval/rejection feedback over time should measurably shift what the agent considers "relevant" without manual prompt edits.
-- Each implementation can store this in whatever form is natural (Letta memory blocks, LangGraph Store, files, etc.).
+- Each implementation can store this in whatever form is natural (LangGraph Store, files, etc.).
 
 ### R6. Crash safety
 

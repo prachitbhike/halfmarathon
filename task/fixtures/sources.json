@@ -35,13 +35,6 @@
     "topics": ["temporal", "durable-execution", "workflows"]
   },
   {
-    "id": "letta-releases",
-    "type": "github_releases",
-    "url": "https://github.com/letta-ai/letta/releases.atom",
-    "name": "Letta GitHub Releases",
-    "topics": ["letta", "memory", "agents", "framework"]
-  },
-  {
     "id": "pydantic-ai-releases",
     "type": "github_releases",
     "url": "https://github.com/pydantic/pydantic-ai/releases.atom",

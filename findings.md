@@ -1,16 +1,16 @@
 # Findings — what we learned
 
-> A hands-on comparison of four orthogonal philosophies for building
+> A hands-on comparison of three orthogonal philosophies for building
 > long-running AI agents. Same task ([Release Radar](task/spec.md)), same
-> evaluation harness, four implementations.
+> evaluation harness, three implementations.
 
-This is the honest write-up after going from research → spec → four
+This is the honest write-up after going from research → spec → three
 implementations → eval matrix. The matrix lives in
 [results/eval-matrix.md](results/eval-matrix.md); this doc is the synthesis.
 
 > **Scope caveat.** The cells reported below are from offline-LLM mode (free
-> to run, deterministic). The Claude Agent SDK and Letta cells skip in this
-> environment because they need real API/server access. The patterns and
+> to run, deterministic). The Claude Agent SDK cell skips in this
+> environment because it needs real API access. The patterns and
 > trade-offs we report are from the structural behavior — for LLM-quality
 > dimensions (compaction, recall, drift under real adversarial pressure) the
 > matrix is silent. We call out exactly where each gap lives.
@@ -20,7 +20,7 @@ implementations → eval matrix. The matrix lives in
 ## TL;DR
 
 For a *typical* long-running agent (days/weeks, scheduled wakes, file-based
-state, an HITL gate), the four schools we tested are **functionally
+state, an HITL gate), the three schools we tested are **functionally
 interchangeable on the durability dimensions** (1, 2, 6, 8). They differ
 sharply on **operational footprint, ergonomics, and how much you have to
 build yourself** — which is where the comparison gets interesting.
@@ -32,9 +32,6 @@ If you're picking one for a real project today:
 - **Want a real workflow engine you can polyglot later?** → Pydantic AI +
   Temporal. Slightly more upfront cost, but event-sourced replay is
   genuinely different and the worker/workflow split scales cleanly.
-- **Want stateful agent identity + memory blocks as a first-class concern?**
-  → Letta. The "server-resident agent" model is unique; pay the operational
-  tax for the memory hierarchy.
 - **Want maximum flexibility + the harness paper's file-as-memory pattern?**
   → Claude Agent SDK. Thin runtime, you own the orchestrator. Best for
   prototyping or when the agent's own decisions drive workflow shape.
@@ -57,10 +54,10 @@ for the live table; numbers below are typical):
 | 7 | Stale state (deletion mid-run) | **PARTIAL** | **PASS** *(for the wrong reason)* | **The most interesting cell in the matrix.** See [§The dim 7 dive](#the-dim-7-dive). |
 | 8 | Replay determinism | PASS | PASS | Two clean offline runs produce byte-identical published digests. |
 
-`letta` and `claude_sdk` skip in this environment (server / API key
-unavailable). With a real Anthropic API key + a Letta server, they should
-score similarly on dims 1/2/3/6/8 and diverge interestingly on 4/5 (where
-their non-deterministic LLM responses change the picture).
+`claude_sdk` skips in this environment (API key unavailable). With a real
+Anthropic API key, it should score similarly on dims 1/2/3/6/8 and diverge
+interestingly on 4/5 (where its non-deterministic LLM responses change the
+picture).
 
 ---
 
@@ -117,7 +114,7 @@ either, you'd need to add explicit re-validation logic.
 
 ---
 
-## Where the four schools genuinely differ
+## Where the three schools genuinely differ
 
 ### 1. Operational footprint
 
@@ -125,20 +122,20 @@ either, you'd need to add explicit re-validation logic.
 |---|---|---|---|
 | LangGraph | None — library | SQLite or Postgres | One process |
 | Pydantic AI + Temporal | Temporal dev server (or Temporal Cloud) | SQLite/Postgres history | One process + worker (or two) |
-| Letta | Letta server (Postgres-backed) | Postgres | Two services |
 | Claude Agent SDK | Spawns `claude` CLI per tick | Filesystem only | One process + Node CLI |
 
 The offline-mock smokes for LangGraph and Pydantic AI + Temporal both run
-in ~15 wall-seconds for the full 14-fixture-day window. Letta and the
-Claude SDK aren't comparable here because they require real API access.
+in ~15 wall-seconds for the full 14-fixture-day window. The Claude SDK
+isn't comparable here because it requires real API access.
 
 For "what a builder would actually adopt": **LangGraph wins on
-operational simplicity**, Letta loses on it (a Postgres-backed server in
-production is not free), and the others are in between.
+operational simplicity**, Temporal sits in the middle (dev server +
+worker), and the Claude SDK is the thinnest runtime once the CLI is
+installed.
 
 ### 2. State model
 
-This is where the four philosophies show through:
+This is where the three philosophies show through:
 
 - **LangGraph** — graph state is a TypedDict; checkpointer serializes the
   whole thing per super-step. Mental model: "state machine with
@@ -153,12 +150,6 @@ This is where the four philosophies show through:
   debugging — you can replay any past execution. Cognitive load comes from
   the determinism contract: anything non-deterministic must be in an
   Activity.
-- **Letta** — agent has a server-side identity with explicit memory
-  blocks (in-context, the agent rewrites them via tools), recall memory
-  (conversation history search), and archival memory (vector store). State
-  isn't your problem — the server owns it. Your code is just a client
-  that sends messages and reads replies. Cognitive load comes from
-  giving up control: when does memory_block X get rewritten, and by who?
 - **Claude Agent SDK** — no in-process state at all. `progress.md` and
   `knowledge_base.json` ARE the state. Each tick is a fresh `query()`
   invocation that re-hydrates from files. Mental model: "the file system
@@ -167,7 +158,7 @@ This is where the four philosophies show through:
 
 ### 3. HITL ergonomics
 
-All four implement the same spec contract (approval file, no
+All three implement the same spec contract (approval file, no
 double-publish), but the *idiomatic* HITL story differs:
 
 - **LangGraph** — `interrupt()` / `Command(resume=...)`. Best HITL
@@ -177,14 +168,12 @@ double-publish), but the *idiomatic* HITL story differs:
   but for cross-impl spec compliance we polled the approval file via an
   activity. Signals would be a small refactor; the polling pattern works
   fine and keeps the file contract intact.
-- **Letta** — message-driven naturally. The agent waits because we wait
-  to send the next message. Any "pause" is at the harness level.
 - **Claude Agent SDK** — pure file convention. The agent reads the
   approval file each tick. No bespoke pause primitive needed because
   ticks ARE the unit of pause.
 
 For a multi-hour pause scenario, **LangGraph and Temporal both shine**.
-Letta and Claude SDK work but the HITL machinery lives in your harness.
+Claude SDK works but the HITL machinery lives in your harness.
 
 ### 4. Replay & debugging
 
@@ -195,22 +184,18 @@ Closely related to state model:
   Genuinely different from the others.
 - **LangGraph** — checkpoint history per thread + `update_state()` to
   fork. Solid; not as polished as Temporal Cloud's UI.
-- **Letta** — message log + memory snapshots; the "rewind" story isn't
-  built-in.
 - **Claude Agent SDK** — you have files + git. Nothing more. Powerful in
   its own way (the Anthropic harness paper leans on git as the time
   machine); requires you to opt into it.
 
 ### 5. Cost & cache
 
-All four use the same `task/llm.py` Anthropic wrapper for cost
+All three use the same `task/llm.py` Anthropic wrapper for cost
 accounting in our test (so the comparison is *about the framework*, not
 "who has the smartest cache hit logic"). In a real deployment:
 
 - LangGraph and Temporal would benefit from Anthropic's 1-hour beta
   prompt-cache TTL on their stable system prompts.
-- Letta's server model means caching happens at the Letta server boundary
-  — opaque to your app.
 - Claude Agent SDK gets prompt caching from Claude Code itself (the
   underlying CLI), which already uses caching aggressively.
 
@@ -233,7 +218,7 @@ Three honest gaps the offline runs leave open:
    the threshold) shows up in the digest. The harder question — "in week 4
    can the agent answer questions about a fact planted in week 1?" — needs
    an "ask the agent" hook that doesn't exist in any of our impls today.
-   Letta and Claude SDK could grow one naturally; LangGraph and Pydantic
+   Claude SDK could grow one naturally; LangGraph and Pydantic
    AI + Temporal would need a small protocol addition.
 
 3. **Stale-state detection** (dim 7 deepening). See [§The dim 7 dive](#the-dim-7-dive)
@@ -255,12 +240,6 @@ A few things that surprised us mid-build:
   (literally just `progress.md` files) but is genuinely effective** for
   the Claude SDK story. The agent re-establishes context every tick from
   the file, and the harness stays under 350 lines.
-
-- **Letta's "you don't own state" model is very different from the
-  others** and fights you when you want cross-impl consistency. We ended
-  up using Letta as a "scoring brain with memory" rather than as the full
-  agent — not the most idiomatic Letta usage, but the only honest
-  apples-to-apples comparison.
 
 - **Temporal's `WorkflowEnvironment.start_local()` spawns the Temporal
   CLI as a subprocess.** Each test run brings up a fresh server and tears
@@ -287,11 +266,6 @@ optional (we got fine with plain pydantic-ai inside activities); the
 real win is that your AI work uses the same observability + replay
 story as everything else.
 
-**You want stateful agents per user with rich memory.**
-Letta is the only one where this is a first-class primitive. Worth the
-operational cost if you're building a "personal AI" product where
-memory continuity is the value prop.
-
 **You want the agent's own decisions to drive workflow shape.**
 Claude Agent SDK + the harness paper pattern. Especially good when the
 agent uses its built-in tools (Bash, Read, Write) to do real work
@@ -309,14 +283,13 @@ Things that would meaningfully shift the matrix if added:
 
 1. **Real Anthropic API access** — converts dim 5 from "structural" to
    "actually adversarial," exposes drift under real keyword overlap.
-2. **A reachable Letta server** — populates Letta column in dims 1/2/3/6/8.
-3. **A claude API key** — populates the Claude SDK column; the harness
+2. **A claude API key** — populates the Claude SDK column; the harness
    paper's two-process pattern (planner + coder) is also worth
    benchmarking, separately from the basic file-as-memory test.
-4. **A months-long fixture** — actually exercises compaction (dim 3)
-   beyond structural bounds. We'd expect Letta and the Claude SDK harness
+3. **A months-long fixture** — actually exercises compaction (dim 3)
+   beyond structural bounds. We'd expect the Claude SDK harness
    to diverge here from the LangGraph/Temporal pair.
-5. **Procedural memory probe** (the optional dim 10) — does the agent
+4. **Procedural memory probe** (the optional dim 10) — does the agent
    measurably improve after 20 sessions of approval/rejection feedback,
    without any prompt-edit by us?
 
@@ -327,6 +300,6 @@ Things that would meaningfully shift the matrix if added:
 - [research.md](research.md) — landscape survey that informed the picks
 - [plan.md](plan.md) — locked decisions + phase plan
 - [task/spec.md](task/spec.md) — canonical Release Radar contract (R1-R7)
-- [implementations/](implementations/) — the four impls
+- [implementations/](implementations/) — the three impls
 - [eval/](eval/) — harness, dims, fixture-override mechanism, report renderer
 - [results/eval-matrix.md](results/eval-matrix.md) — current matrix snapshot

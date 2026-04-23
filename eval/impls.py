@@ -31,8 +31,8 @@ class ImplSpec:
     display_name: str
     requires_api_key: bool  # True => skip when ANTHROPIC_API_KEY unset
     run: RunCallable
-    # Optional extra check (e.g. Letta server reachability). Returns False if
-    # this impl shouldn't be auto-included in the available set.
+    # Optional extra check returning False if this impl shouldn't be
+    # auto-included in the available set.
     extra_availability_check: Callable[[], bool] | None = None
     # Some impls take additional kwargs (langgraph: thread_id). We pack them.
     extra_run_kwargs: dict[str, Any] | None = None
@@ -90,43 +90,6 @@ def _wrap_temporal_pydantic() -> RunCallable:
     return _run
 
 
-def _wrap_letta() -> RunCallable:
-    async def _run(
-        *,
-        profile: UserProfile,
-        state_dir: Path,
-        fixture_start: datetime,
-        until: datetime,
-        speed: float,
-        thread_id: str = "eval",
-        fixtures_dir: Path | None = None,
-        **_: Any,
-    ) -> dict[str, Any]:
-        from implementations.letta.run import run_loop  # noqa: PLC0415
-        return await run_loop(
-            profile=profile,
-            state_dir=state_dir,
-            fixture_start=fixture_start,
-            until=until,
-            speed=speed,
-            agent_name=f"release-radar-{thread_id}",
-            fixtures_dir=fixtures_dir,
-        )
-
-    return _run
-
-
-def _letta_reachable() -> bool:
-    """Cheap probe so the registry can mark letta as runnable in this env."""
-    import os  # noqa: PLC0415
-    try:
-        from implementations.letta.run import _check_letta_reachable  # noqa: PLC0415
-    except ImportError:
-        return False
-    base_url = os.environ.get("LETTA_BASE_URL", "http://localhost:8283")
-    return _check_letta_reachable(base_url)
-
-
 def _wrap_claude_sdk() -> RunCallable:
     async def _run(
         *,
@@ -165,13 +128,6 @@ REGISTRY: list[ImplSpec] = [
         run=_wrap_temporal_pydantic(),
     ),
     ImplSpec(
-        id="letta",
-        display_name="Letta (server-resident agent)",
-        requires_api_key=True,  # needs reachable Letta server + Anthropic creds
-        run=_wrap_letta(),
-        extra_availability_check=_letta_reachable,
-    ),
-    ImplSpec(
         id="claude_sdk",
         display_name="Claude Agent SDK (file-as-memory)",
         requires_api_key=True,  # SDK shells to claude CLI; needs real API
@@ -185,7 +141,7 @@ def available_impls(skip_api: bool | None = None) -> list[ImplSpec]:
 
     If skip_api is None: auto-detect from env (skip API-required when key unset).
     Also runs each spec's `extra_availability_check` and excludes those that
-    return False (e.g. Letta when its server isn't reachable).
+    return False.
     """
     if skip_api is None:
         skip_api = not bool(os.environ.get("ANTHROPIC_API_KEY"))

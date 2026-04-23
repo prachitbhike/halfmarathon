@@ -2,11 +2,11 @@
 
 A hands-on comparison of approaches to building **long-running AI agents** — agents that persist state across days/weeks, not single chat sessions.
 
-One canonical task ("Release Radar"), four implementations spanning orthogonal philosophies, one shared evaluation harness.
+One canonical task ("Release Radar"), three implementations spanning orthogonal philosophies, one shared evaluation harness.
 
 ## What this is
 
-Most "agent framework comparison" content is a feature checklist or a vibes-based survey. This repo is the opposite: the **same task, run for 8 hours of compressed time, against four real implementations**, scored on 8 long-running-specific dimensions, with the cost ledger and findings published.
+Most "agent framework comparison" content is a feature checklist or a vibes-based survey. This repo is the opposite: the **same task, run for 8 hours of compressed time, against three real implementations**, scored on 8 long-running-specific dimensions, with the cost ledger and findings published.
 
 Read first:
 - [findings.md](findings.md) — **the honest take** after running the experiment
@@ -14,16 +14,15 @@ Read first:
 - [plan.md](plan.md) — what we're building and why
 - [CONTRIBUTING.md](CONTRIBUTING.md) — adding a new impl or dimension
 
-## The four implementations
+## The three implementations
 
 | Approach | Stack | What it tests |
 |---|---|---|
 | Workflow engine + thin agent | Pydantic AI + Temporal | Event-sourced replay, polyglot durability |
 | Graph + checkpointer | LangGraph + Postgres | First-class HITL `interrupt()`, time travel, cron |
-| Stateful-by-design agent server | Letta (self-hosted) | Memory blocks, recall/archival, server-resident identity |
 | Vendor-managed harness | Claude Agent SDK + file-based memory | Anthropic's harness pattern (`progress.md` + git + sub-agents) |
 
-All four use Anthropic Claude (Opus 4.7 + Sonnet 4.6) so model quality is held constant.
+All three use Anthropic Claude (Opus 4.7 + Sonnet 4.6) so model quality is held constant.
 
 ## The task: Release Radar
 
@@ -79,7 +78,6 @@ halfmarathon/
   implementations/         # one subdir per approach (added in Phase 1+)
     langgraph/
     temporal-pydantic/
-    letta/
     claude-sdk/
   eval/                    # dimension tests, scoring, report generator (Phase 2+)
     dimensions/
@@ -89,7 +87,6 @@ halfmarathon/
     base/
     langgraph/
     temporal-pydantic/
-    letta/
     claude-sdk/
   results/                 # eval output (gitignored except summary)
 ```
@@ -98,14 +95,13 @@ halfmarathon/
 
 **Phase 5 complete.** Fixture-override mechanism, all 8 dimensions exercised against real injected events, [findings.md](findings.md) written, repo polished for public consumption. See [results/eval-matrix.md](results/eval-matrix.md) for the latest snapshot.
 
-Two impls (langgraph, temporal_pydantic) run in offline mock mode for free. Letta and Claude SDK skip pending server/API access — their columns will populate when the keys are set.
+Two impls (langgraph, temporal_pydantic) run in offline mock mode for free. Claude SDK skips pending API access — its column will populate when the key is set.
 
-The honest cross-impl story is in [findings.md](findings.md). The main production-relevant gap surfaced by the matrix: **none of the four impls re-checks source state after filing** (dim 7), which means stale entries can persist into published digests after a source mutates. That's the kind of finding the test bed exists for.
+The honest cross-impl story is in [findings.md](findings.md). The main production-relevant gap surfaced by the matrix: **none of the three impls re-checks source state after filing** (dim 7), which means stale entries can persist into published digests after a source mutates. That's the kind of finding the test bed exists for.
 
 ### Implementations
 - `implementations/langgraph/` — graph + AsyncSqliteSaver + `interrupt()`-based HITL. Offline-mock smoke = free.
 - `implementations/temporal_pydantic/` — Temporal workflow + activities + Pydantic AI typed outputs. Local Temporal dev server spawned by `WorkflowEnvironment.start_local()`. Offline-mock smoke = free.
-- `implementations/letta/` — server-resident agent with memory blocks; harness drives the workflow, agent provides scoring + memory across ticks. Smoke requires a reachable Letta server (`LETTA_BASE_URL`).
 - `implementations/claude_sdk/` — file-as-memory ("Ralph loop") harness: per-tick fresh `query()`, agent maintains `progress.md` + `knowledge_base.json` + `digests/` using built-in Read/Write/Edit/Bash. Smoke requires `ANTHROPIC_API_KEY` (~$0.10–$0.50).
 
 ## License

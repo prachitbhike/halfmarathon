@@ -131,7 +131,7 @@ async def run(
     found_in_digest = any(probe_url in body for body in digests)
 
     # Graded surface: digest > KB-only > missing. KB score is only meaningful
-    # when the impl exposes its KB on disk (letta's in-memory store is not).
+    # when the impl exposes its KB on disk.
     surface_score = (
         1.0 if found_in_digest
         else 0.5 if found_in_kb is True

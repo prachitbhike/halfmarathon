@@ -360,7 +360,6 @@ dev = [
     { name = "claude-agent-sdk" },
     { name = "langgraph" },
     { name = "langgraph-checkpoint-sqlite" },
-    { name = "letta-client" },
     { name = "mypy" },
     { name = "pydantic-ai-slim", extra = ["anthropic", "temporal"] },
     { name = "pytest" },
@@ -378,9 +377,6 @@ langgraph = [
     { name = "langgraph" },
     { name = "langgraph-checkpoint-sqlite" },
 ]
-letta = [
-    { name = "letta-client" },
-]
 temporal-pydantic = [
     { name = "pydantic-ai-slim", extra = ["anthropic", "temporal"] },
     { name = "temporalio" },
@@ -390,10 +386,9 @@ temporal-pydantic = [
 requires-dist = [
     { name = "anthropic", specifier = ">=0.62" },
     { name = "claude-agent-sdk", marker = "extra == 'claude-sdk'", specifier = ">=0.1.65" },
-    { name = "halfmarathon", extras = ["eval", "langgraph", "claude-sdk", "temporal-pydantic", "letta"], marker = "extra == 'dev'" },
+    { name = "halfmarathon", extras = ["eval", "langgraph", "claude-sdk", "temporal-pydantic"], marker = "extra == 'dev'" },
     { name = "langgraph", marker = "extra == 'langgraph'", specifier = ">=1.1" },
     { name = "langgraph-checkpoint-sqlite", marker = "extra == 'langgraph'", specifier = ">=3.0" },
-    { name = "letta-client", marker = "extra == 'letta'", specifier = ">=1.10" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.10" },
     { name = "pydantic", specifier = ">=2.7" },
     { name = "pydantic-ai-slim", extras = ["anthropic", "temporal"], marker = "extra == 'temporal-pydantic'", specifier = ">=1.86" },
@@ -702,23 +697,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/6f/75/1ee27b3510bf5b1b569b9695c9466c256caab45885bd569c0c67720236ad/langsmith-0.7.33.tar.gz", hash = "sha256:fa2d81ad6e8374a81fda9291894f6fcae714e55fbf11a0b07578e3cd4b1ea384", size = 1186298 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/f4/76/53033db34ffccd25d62c32b23b9468f7228b455da6976e1c420ae31555c4/langsmith-0.7.33-py3-none-any.whl", hash = "sha256:5b535b991d52d3b664ebb8dc6f95afcf8d0acb42e062ac45a54a6a4820139f20", size = 378981 },
-]
-
-[[package]]
-name = "letta-client"
-version = "1.10.3"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "anyio" },
-    { name = "distro" },
-    { name = "httpx" },
-    { name = "pydantic" },
-    { name = "sniffio" },
-    { name = "typing-extensions" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/cf/bc/caa05623a97875e87fa75feec9050704c40edd374c22c88a7f6b909f2e7f/letta_client-1.10.3.tar.gz", hash = "sha256:26142e686a79cb0d645d245202aaa6889ff45aa1f52009bf10b73ca649649825", size = 284091 }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/12/82/02cb2b0e02c62dffe766b9cdaadd01010902ebf5b6c532ada301900d97e3/letta_client-1.10.3-py3-none-any.whl", hash = "sha256:dfac473a684e3d0a74bdc0faa6b5118c3b283a2fcfa27fbef2eaf8de00d42d5d", size = 408582 },
 ]
 
 [[package]]
