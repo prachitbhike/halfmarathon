@@ -23,7 +23,12 @@ from eval.dimensions import (
     DimensionStatus,
     base,
     dim1_crash,
+    dim2_multiday,
+    dim3_context,
+    dim4_memory,
+    dim5_drift,
     dim6_hitl,
+    dim7_stale,
     dim8_replay,
 )
 from eval.impls import REGISTRY, ImplSpec, available_impls
@@ -34,7 +39,16 @@ ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / "task" / "fixtures"
 
 # Dimension entry points. Ordering controls report output.
-DIMENSIONS = [dim1_crash, dim6_hitl, dim8_replay]
+DIMENSIONS = [
+    dim1_crash,
+    dim2_multiday,
+    dim3_context,
+    dim4_memory,
+    dim5_drift,
+    dim6_hitl,
+    dim7_stale,
+    dim8_replay,
+]
 
 
 @dataclass

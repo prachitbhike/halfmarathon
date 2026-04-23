@@ -50,6 +50,8 @@ Plus optional **(9) cost regression** and **(10) procedural memory**.
 
 Score per dimension: pass / partial / fail / N/A with a one-paragraph note. Output is a markdown matrix, not a leaderboard — different frameworks win on different axes.
 
+The eval harness writes [results/eval-matrix.md](results/eval-matrix.md) (committed snapshot) plus a detailed `eval-summary.json` (gitignored) per run.
+
 ## Running it (Phase 0 — foundations only)
 
 ```bash
@@ -92,16 +94,21 @@ halfmarathon/
 
 ## Status
 
-**Phase 3** — all four implementations land:
+**Phase 4** — all 8 evaluation dimensions land. Current matrix snapshot ([results/eval-matrix.md](results/eval-matrix.md)) for the two API-key-free impls (langgraph, temporal_pydantic) running in offline mock mode:
 
+- **5/8 PASS** per impl: crash recovery (1), multi-day + multi-restart (2), structural continuity (3), HITL gate (6), replay determinism (8)
+- **3/8 PARTIAL** per impl with documented limitations:
+  - Dim 4 (memory recall): probe event isn't injected into the impl's input stream — needs a fixture-override mechanism (Phase 5)
+  - Dim 5 (goal drift): offline keyword matcher lets ~12% off-topic items through (under PASS threshold of 25%)
+  - Dim 7 (stale state): no impl currently re-checks source state after filing — a real finding for production
+
+`letta` and `claude_sdk` skip pending server/API access. Phase 5 next: findings.md writeup, fixture-override mechanism, e2b sandbox build.
+
+### Implementations
 - `implementations/langgraph/` — graph + AsyncSqliteSaver + `interrupt()`-based HITL. Offline-mock smoke = free.
 - `implementations/temporal_pydantic/` — Temporal workflow + activities + Pydantic AI typed outputs. Local Temporal dev server spawned by `WorkflowEnvironment.start_local()`. Offline-mock smoke = free.
 - `implementations/letta/` — server-resident agent with memory blocks; harness drives the workflow, agent provides scoring + memory across ticks. Smoke requires a reachable Letta server (`LETTA_BASE_URL`).
 - `implementations/claude_sdk/` — file-as-memory ("Ralph loop") harness: per-tick fresh `query()`, agent maintains `progress.md` + `knowledge_base.json` + `digests/` using built-in Read/Write/Edit/Bash. Smoke requires `ANTHROPIC_API_KEY` (~$0.10–$0.50).
-
-Eval harness ([eval/](eval/)) covers dims 1, 6, 8 (crash, HITL, replay) and produces [results/eval-matrix.md](results/eval-matrix.md). Current matrix: `langgraph` and `temporal_pydantic` both PASS all three dimensions in offline mode; `letta` and `claude_sdk` skip pending server/API access.
-
-Phase 4 next: e2b sandbox templates wired up, dims 2/3/4/5/7 added (the wall-clock-bound ones).
 
 ## License
 

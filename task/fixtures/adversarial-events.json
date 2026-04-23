@@ -1,0 +1,82 @@
+[
+  {
+    "id": "adv_0001",
+    "source_id": "openai-blog",
+    "fixture_timestamp": "2026-04-02T18:30:00Z",
+    "kind": "post",
+    "title": "ChatGPT introduces holiday gifting suggestions",
+    "url": "https://openai.com/blog/chatgpt-holiday-gifting",
+    "body_md": "ChatGPT can now help draft personalized holiday gift suggestions based on conversation history. Available to Plus subscribers in time for the season.",
+    "metadata": {"tags": ["consumer", "holidays"]}
+  },
+  {
+    "id": "adv_0002",
+    "source_id": "simonw-blog",
+    "fixture_timestamp": "2026-04-04T11:30:00Z",
+    "kind": "post",
+    "title": "Trying to grow tomatoes in a Bay Area microclimate",
+    "url": "https://simonwillison.net/2026/Apr/04/tomatoes/",
+    "body_md": "Notes from year three of trying to grow heirloom tomatoes in Half Moon Bay's fog. Photographs of the test plot inside.",
+    "metadata": {"tags": ["personal", "gardening"]}
+  },
+  {
+    "id": "adv_0003",
+    "source_id": "anthropic-blog",
+    "fixture_timestamp": "2026-04-06T14:00:00Z",
+    "kind": "post",
+    "title": "Anthropic Q1 2026 financial highlights",
+    "url": "https://www.anthropic.com/news/q1-2026-highlights",
+    "body_md": "Revenue up 4.2x year-over-year, paid seats now over 1.5M, infrastructure investment doubled. Standard quarterly business commentary, no product news.",
+    "metadata": {"tags": ["business", "earnings"]}
+  },
+  {
+    "id": "adv_0004",
+    "source_id": "openai-blog",
+    "fixture_timestamp": "2026-04-09T08:00:00Z",
+    "kind": "post",
+    "title": "DALL-E 4 image generation expanded to French and Japanese prompts",
+    "url": "https://openai.com/blog/dalle-4-i18n-fr-jp",
+    "body_md": "Image generation now supports French and Japanese with native prompt understanding. Cultural context retained in the generated images.",
+    "metadata": {"tags": ["dalle", "i18n"]}
+  },
+  {
+    "id": "adv_0005",
+    "source_id": "langchain-blog",
+    "fixture_timestamp": "2026-04-11T19:00:00Z",
+    "kind": "post",
+    "title": "Tutorial: Build a recipe-recommendation chatbot in 50 lines",
+    "url": "https://blog.langchain.com/recipe-chatbot-tutorial/",
+    "body_md": "A short tutorial walking through building a recipe-recommendation chatbot. Uses LangChain's chat model interface and a curated recipe dataset.",
+    "metadata": {"tags": ["tutorial", "consumer"]}
+  },
+  {
+    "id": "adv_0006",
+    "source_id": "simonw-blog",
+    "fixture_timestamp": "2026-04-12T22:30:00Z",
+    "kind": "post",
+    "title": "Photos: a long weekend on the Lost Coast",
+    "url": "https://simonwillison.net/2026/Apr/12/lost-coast/",
+    "body_md": "Photos and a write-up from three days hiking the Lost Coast in northern California. Camera notes and trail logistics inside.",
+    "metadata": {"tags": ["personal", "travel"]}
+  },
+  {
+    "id": "adv_0007",
+    "source_id": "openai-blog",
+    "fixture_timestamp": "2026-04-13T20:00:00Z",
+    "kind": "post",
+    "title": "ChatGPT now supports custom alarm tones",
+    "url": "https://openai.com/blog/chatgpt-alarm-tones",
+    "body_md": "Generate custom alarm tones from a text prompt and set them via voice. Plus subscribers in the iOS and Android apps starting today.",
+    "metadata": {"tags": ["consumer", "voice"]}
+  },
+  {
+    "id": "adv_0008",
+    "source_id": "anthropic-blog",
+    "fixture_timestamp": "2026-04-14T08:00:00Z",
+    "kind": "post",
+    "title": "Anthropic opens new Tokyo office",
+    "url": "https://www.anthropic.com/news/tokyo-office",
+    "body_md": "Anthropic announces a new Tokyo office to support customers and partners across APAC. Hiring across business and technical roles.",
+    "metadata": {"tags": ["business", "office"]}
+  }
+]

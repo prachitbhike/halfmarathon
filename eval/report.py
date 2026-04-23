@@ -95,13 +95,44 @@ def render(summary_path: Path) -> str:
             cells.append(f"{r['elapsed_s']:.1f}" if r else "—")
         lines.append("| " + " | ".join(cells) + " |")
 
+    # Cost ledger: sum estimated_cost_usd from each cell's summary.
+    cost_by_impl: dict[str, float] = {impl: 0.0 for impl in impls}
+    for r in results:
+        impl_id = r["impl_id"]
+        metrics = r.get("metrics") or {}
+        for key in ("summary", "fresh_summary", "resumed_summary",
+                    "multi_summary", "phase_a_summary", "phase_b_summary",
+                    "run_a_summary", "run_b_summary"):
+            sub = metrics.get(key)
+            if isinstance(sub, dict):
+                cost_by_impl[impl_id] += float(sub.get("estimated_cost_usd") or 0.0)
+                cost_by_impl[impl_id] += float(sub.get("tick_cost_usd") or 0.0)
+    if any(c > 0 for c in cost_by_impl.values()):
+        lines += [
+            "",
+            "## Estimated cost per impl (USD, summed across all dim runs)",
+            "",
+            "| " + " | ".join(impls) + " |",
+            "| " + " | ".join(["---"] * len(impls)) + " |",
+            "| " + " | ".join(f"${cost_by_impl[i]:.4f}" for i in impls) + " |",
+        ]
+    else:
+        lines += [
+            "",
+            "_All runs in offline mock mode — no LLM cost incurred. Re-run "
+            "with `HALFMARATHON_OFFLINE_LLM` unset to populate the cost ledger._",
+        ]
+
     lines += [
         "",
         "## Notes",
         "",
-        "- Phase 2 covers dimensions 1, 6, 8 (the deterministic, fast-to-run ones). ",
-        "- Dimensions 2, 3, 4, 5, 7 (and optional 9, 10) land in Phase 4 — they ",
-        "  require longer wall-clock runs in the e2b sandbox.",
+        "- Dimensions 1, 6, 8 are deterministic and fully exercised offline.",
+        "- Dimensions 2, 3, 4, 5, 7 are partially exercised in offline mode: ",
+        "  they validate structure (no crash, output bounds, no double-publish, ",
+        "  no off-topic in published, no stale references) but cannot evaluate ",
+        "  LLM-dependent quality (compaction, recall, drift under adversarial ",
+        "  pressure). The `findings.md` writeup calls out each gap explicitly.",
         "- Detailed per-cell metrics are in `eval-summary.json` next to this file.",
         "",
     ]

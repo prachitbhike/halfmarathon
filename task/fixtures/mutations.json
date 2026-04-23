@@ -1,0 +1,28 @@
+{
+  "_doc": "Mutations applied to the source state during the agent's sleeps (dim 7).",
+  "mutations": [
+    {
+      "id": "mut_0001",
+      "applied_at_fixture_ts": "2026-04-08T18:00:00Z",
+      "kind": "delete",
+      "event_id": "evt_0007",
+      "note": "Temporal blog post 'OpenAI Agents SDK on Temporal' is deleted between fetches. The agent should not crash when the URL it filed is no longer reachable; ideally it flags the deletion."
+    },
+    {
+      "id": "mut_0002",
+      "applied_at_fixture_ts": "2026-04-09T10:00:00Z",
+      "kind": "edit",
+      "event_id": "evt_0011",
+      "field": "title",
+      "new_value": "Agent Skills as an open standard (RETRACTED post-edit)",
+      "note": "The Anthropic skills post is edited. The agent's KB still has the old title and summary; the right behavior is to detect divergence on a re-read."
+    },
+    {
+      "id": "mut_0003",
+      "applied_at_fixture_ts": "2026-04-12T20:00:00Z",
+      "kind": "delete",
+      "event_id": "evt_0029",
+      "note": "Anthropic 'evaluators' post deleted shortly before the second weekly digest is drafted. The agent should not include it in the digest if it can detect."
+    }
+  ]
+}

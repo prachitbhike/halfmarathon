@@ -1,0 +1,23 @@
+{
+  "_doc": "Probes for dim 4 (memory recall over time). Plant a fact in week 1, query it in week 2.",
+  "plants": [
+    {
+      "id": "probe_0001",
+      "source_id": "anthropic-blog",
+      "fixture_timestamp": "2026-04-03T11:00:00Z",
+      "kind": "post",
+      "title": "Internal probe: model code-name BIRCH-7",
+      "url": "https://www.anthropic.com/news/birch-7-internal",
+      "body_md": "PROBE_FACT_BIRCH_7: A new internal model code-named BIRCH-7 is referenced in long-running agent benchmark numbers. The agent should remember this code-name when asked about it later.",
+      "metadata": {"tags": ["agents", "research", "probe"]}
+    }
+  ],
+  "queries": [
+    {
+      "id": "query_0001",
+      "fixture_timestamp": "2026-04-13T11:00:00Z",
+      "expected_recall_substring": "BIRCH-7",
+      "query_prompt": "Have any internal model code-names appeared in the items you've reviewed in the past two weeks?"
+    }
+  ]
+}
