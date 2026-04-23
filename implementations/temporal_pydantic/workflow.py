@@ -15,7 +15,7 @@ Fixture-time mapping:
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 from temporalio import workflow
@@ -25,12 +25,16 @@ with workflow.unsafe.imports_passed_through():
     from implementations.temporal_pydantic.activities import (
         DraftDigestInput,
         FetchEventsInput,
+        LoadPriorStateInput,
+        PersistMetaInput,
         PollApprovalInput,
         PublishInput,
         ScoreSummarizeInput,
         WriteEventInput,
         draft_digest,
         fetch_events,
+        load_prior_state,
+        persist_meta,
         poll_approval,
         publish,
         score_and_summarize,
@@ -137,12 +141,35 @@ class ReleaseRadarWorkflow:
     # ---- main loop ------------------------------------------------------
 
     @workflow.run
-    async def run(self, args: WorkflowArgs) -> WorkflowSummary:
+    async def run(self, args: WorkflowArgs) -> WorkflowSummary:  # noqa: PLR0915
         self._args = args
         self._workflow_start_dt = workflow.now()
         until = datetime.fromisoformat(args.until_iso)
 
-        await self._emit("wake", {"reason": "boot"})
+        # Reload prior state from state_dir. A second workflow execution
+        # against the same state_dir (e.g. dim1 resume, dim6 Phase B)
+        # picks up where the previous one left off: already-published
+        # weeks are skipped, prior KB items are not re-summarized, and
+        # fetch picks up from last_fetch_iso.
+        prior = await workflow.execute_activity(
+            load_prior_state,
+            LoadPriorStateInput(state_dir=args.state_dir),
+            start_to_close_timeout=_ACTIVITY_TIMEOUT,
+            retry_policy=_DEFAULT_RETRY,
+        )
+        self.kb = json.loads(prior.kb_json)
+        self.published_weeks = list(prior.published_weeks)
+        self.last_fetch_iso = prior.last_fetch_iso
+        self.procedural_notes = list(prior.procedural_notes)
+
+        await self._emit(
+            "wake",
+            {
+                "reason": "boot",
+                "resumed_kb_size": len(self.kb),
+                "resumed_published_weeks": list(self.published_weeks),
+            },
+        )
 
         while self._fixture_now() < until:
             self.ticks += 1
@@ -261,7 +288,20 @@ class ReleaseRadarWorkflow:
                         )
                     self.pending = None
 
-            # 5) sleep until the next wake
+            # 5) persist meta (last_fetch_iso + procedural_notes) so a
+            # subsequent workflow execution can resume cleanly.
+            await workflow.execute_activity(
+                persist_meta,
+                PersistMetaInput(
+                    state_dir=args.state_dir,
+                    last_fetch_iso=self.last_fetch_iso,
+                    procedural_notes=list(self.procedural_notes),
+                ),
+                start_to_close_timeout=_ACTIVITY_TIMEOUT,
+                retry_policy=_DEFAULT_RETRY,
+            )
+
+            # 6) sleep until the next wake
             next_wake = await self._next_daily_wake_fixture()
             if self.pending is not None:
                 # While pending, poll more frequently than daily.
@@ -274,6 +314,17 @@ class ReleaseRadarWorkflow:
             sleep_s = (next_wake - self._fixture_now()).total_seconds()
             await self._sleep_fixture(max(0.0, sleep_s))
 
+        # Final meta persist on exit.
+        await workflow.execute_activity(
+            persist_meta,
+            PersistMetaInput(
+                state_dir=args.state_dir,
+                last_fetch_iso=self.last_fetch_iso,
+                procedural_notes=list(self.procedural_notes),
+            ),
+            start_to_close_timeout=_ACTIVITY_TIMEOUT,
+            retry_policy=_DEFAULT_RETRY,
+        )
         await self._emit(
             "wake",
             {"reason": "exit", "published": list(self.published_weeks)},
@@ -284,7 +335,3 @@ class ReleaseRadarWorkflow:
             procedural_notes=list(self.procedural_notes),
             ticks=self.ticks,
         )
-
-
-# Touch unused imports for tooling cleanliness.
-_ = field
