@@ -47,11 +47,11 @@ STATE_DIR = ROOT / "implementations" / "langgraph" / "state-smoke"
 
 
 def _expected_week_ids(start: datetime, until: datetime) -> list[str]:
-    """ISO week ids for each Sunday in [start, until)."""
+    """ISO week ids for each Monday in [start, until) — the draft trigger."""
     out: list[str] = []
     d = start
     while d < until:
-        if d.weekday() == 6:
+        if d.weekday() == 0:
             week_start = (d - timedelta(days=7)).replace(
                 hour=0, minute=0, second=0, microsecond=0
             )

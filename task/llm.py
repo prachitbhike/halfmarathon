@@ -33,6 +33,11 @@ from datetime import datetime
 from typing import Any
 
 from anthropic import Anthropic
+from anthropic.types import (
+    CacheControlEphemeralParam,
+    TextBlock,
+    TextBlockParam,
+)
 
 from task.types import SourceEvent, UserProfile
 
@@ -96,9 +101,11 @@ class Llm:
         if OFFLINE or self._client is None:
             return self._offline_complete(purpose=purpose, user_message=user_message)
 
-        sys_blocks: list[dict[str, Any]] = [{"type": "text", "text": system}]
+        sys_blocks: list[TextBlockParam] = [{"type": "text", "text": system}]
         if cache_system:
-            sys_blocks[0]["cache_control"] = {"type": "ephemeral", "ttl": "1h"}
+            sys_blocks[0]["cache_control"] = CacheControlEphemeralParam(
+                type="ephemeral", ttl="1h",
+            )
         resp = self._client.messages.create(
             model=model,
             max_tokens=max_tokens,
@@ -106,8 +113,7 @@ class Llm:
             messages=[{"role": "user", "content": user_message}],
             extra_headers={"anthropic-beta": "extended-cache-ttl-2025-04-11"},
         )
-        text_parts = [b.text for b in resp.content if getattr(b, "type", "") == "text"]
-        text = "".join(text_parts)
+        text = "".join(b.text for b in resp.content if isinstance(b, TextBlock))
 
         usage = resp.usage
         self._record(
