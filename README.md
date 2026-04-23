@@ -92,12 +92,16 @@ halfmarathon/
 
 ## Status
 
-**Phase 1** — first two implementations land:
+**Phase 3** — all four implementations land:
 
-- `implementations/langgraph/` — full graph + AsyncSqliteSaver + `interrupt()`-based HITL gate. End-to-end smoke (`make smoke-langgraph`) runs against the full 14-day fixture in offline mode and publishes both expected weekly digests.
-- `implementations/claude_sdk/` — file-as-memory ("Ralph loop") harness: per-tick fresh `query()`, agent maintains `progress.md` + `knowledge_base.json` + `digests/` itself using built-in Read/Write/Edit/Bash. Smoke (`make smoke-claude-sdk`) requires `ANTHROPIC_API_KEY` and costs ~$0.10–$0.50.
+- `implementations/langgraph/` — graph + AsyncSqliteSaver + `interrupt()`-based HITL. Offline-mock smoke = free.
+- `implementations/temporal_pydantic/` — Temporal workflow + activities + Pydantic AI typed outputs. Local Temporal dev server spawned by `WorkflowEnvironment.start_local()`. Offline-mock smoke = free.
+- `implementations/letta/` — server-resident agent with memory blocks; harness drives the workflow, agent provides scoring + memory across ticks. Smoke requires a reachable Letta server (`LETTA_BASE_URL`).
+- `implementations/claude_sdk/` — file-as-memory ("Ralph loop") harness: per-tick fresh `query()`, agent maintains `progress.md` + `knowledge_base.json` + `digests/` using built-in Read/Write/Edit/Bash. Smoke requires `ANTHROPIC_API_KEY` (~$0.10–$0.50).
 
-Phase 2 (eval harness for fast dimensions) and Phase 3 (Pydantic AI + Temporal, Letta) are next.
+Eval harness ([eval/](eval/)) covers dims 1, 6, 8 (crash, HITL, replay) and produces [results/eval-matrix.md](results/eval-matrix.md). Current matrix: `langgraph` and `temporal_pydantic` both PASS all three dimensions in offline mode; `letta` and `claude_sdk` skip pending server/API access.
+
+Phase 4 next: e2b sandbox templates wired up, dims 2/3/4/5/7 added (the wall-clock-bound ones).
 
 ## License
 

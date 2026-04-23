@@ -1,8 +1,8 @@
 # halfmarathon eval matrix
 
-_Generated from `results/eval-summary.json` (2026-04-23T05:02:19.913969+00:00 → 2026-04-23T05:03:47.604283+00:00)._
+_Generated from `results/eval-summary.json` (2026-04-23T05:24:12.939038+00:00 → 2026-04-23T05:27:12.256265+00:00)._
 
-Impls run: langgraph.  Skipped: claude_sdk.
+Impls run: langgraph, temporal_pydantic.  Skipped: letta, claude_sdk.
 
 ## Status legend
 
@@ -14,19 +14,19 @@ Impls run: langgraph.  Skipped: claude_sdk.
 
 ## Matrix
 
-| Dimension | `langgraph` |
-| --- | --- |
-| **1. Crash recovery** | **PASS** — Resume-from-partial reaches the same end state as a fresh single pass: 2 digests published, KB=29 items, no duplicates. |
-| **6. HITL gate spanning hours** | **PASS** — Held-approval flow honored: drafted in Phase A without publishing, picked up the approval after Phase B and published week-2026-W13 (no double-publish). |
-| **8. Replay determinism** | **PASS** — Two clean runs produced byte-identical published digests for all 2 weeks (deterministic in this configuration). |
+| Dimension | `langgraph` | `temporal_pydantic` |
+| --- | --- | --- |
+| **1. Crash recovery** | **PASS** — Resume-from-partial reaches the same end state as a fresh single pass: 2 digests published, KB=29 items, no duplicates. | **PASS** — Resume-from-partial reaches the same end state as a fresh single pass: 2 digests published, KB=38 items, no duplicates. |
+| **6. HITL gate spanning hours** | **PASS** — Held-approval flow honored: drafted in Phase A without publishing, picked up the approval after Phase B and published week-2026-W13 (no double-publish). | **PASS** — Held-approval flow honored: drafted in Phase A without publishing, picked up the approval after Phase B and published week-2026-W13 (no double-publish). |
+| **8. Replay determinism** | **PASS** — Two clean runs produced byte-identical published digests for all 2 weeks (deterministic in this configuration). | **PASS** — Two clean runs produced byte-identical published digests for all 2 weeks (deterministic in this configuration). |
 
 ## Per-cell elapsed time (seconds)
 
-| Dimension | langgraph |
-| --- | --- |
-| 1. Crash recovery | 35.6 |
-| 6. HITL gate spanning hours | 22.0 |
-| 8. Replay determinism | 30.1 |
+| Dimension | langgraph | temporal_pydantic |
+| --- | --- | --- |
+| 1. Crash recovery | 35.4 | 37.5 |
+| 6. HITL gate spanning hours | 22.1 | 23.0 |
+| 8. Replay determinism | 30.0 | 31.3 |
 
 ## Notes
 

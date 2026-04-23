@@ -16,8 +16,13 @@ langgraph = [
     "langgraph>=1.1",
     "langgraph-checkpoint-sqlite>=3.0",
 ]
-temporal-pydantic = []  # Phase 3
-letta = []              # Phase 3
+temporal-pydantic = [
+    "pydantic-ai-slim[anthropic,temporal]>=1.86",
+    "temporalio>=1.26",
+]
+letta = [
+    "letta-client>=1.10",
+]
 claude-sdk = [
     "claude-agent-sdk>=0.1.65",
 ]
@@ -27,7 +32,7 @@ eval = [
     "rich>=13.7",
 ]
 dev = [
-    "halfmarathon[eval,langgraph,claude-sdk]",
+    "halfmarathon[eval,langgraph,claude-sdk,temporal-pydantic,letta]",
     "ruff>=0.5",
     "mypy>=1.10",
 ]

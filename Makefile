@@ -1,6 +1,6 @@
 .PHONY: install fixtures clock-test test lint typecheck \
         sandbox-base sandbox-langgraph sandbox-temporal-pydantic sandbox-letta sandbox-claude-sdk \
-        smoke-langgraph smoke-claude-sdk smoke \
+        smoke-langgraph smoke-temporal-pydantic smoke-letta smoke-claude-sdk smoke \
         eval report help
 
 UV := uv
@@ -17,9 +17,11 @@ help:
 	@echo "  make sandbox-base         # build the e2b base image"
 	@echo
 	@echo "Phase 1+ (per-impl smokes — local, off-cluster):"
-	@echo "  make smoke-langgraph    # offline mock by default; free"
-	@echo "  make smoke-claude-sdk   # requires ANTHROPIC_API_KEY (~\$$0.10-0.50)"
-	@echo "  make smoke              # both"
+	@echo "  make smoke-langgraph         # offline mock by default; free"
+	@echo "  make smoke-temporal-pydantic # offline mock by default; free"
+	@echo "  make smoke-letta             # needs LETTA_BASE_URL reachable"
+	@echo "  make smoke-claude-sdk        # requires ANTHROPIC_API_KEY (~\$$0.10-0.50)"
+	@echo "  make smoke                   # all four"
 	@echo
 	@echo "Phase 1+ (per-impl sandboxes):"
 	@echo "  make sandbox-langgraph"
@@ -51,10 +53,16 @@ typecheck:
 smoke-langgraph:
 	$(UV) run python -m implementations.langgraph.smoke
 
+smoke-temporal-pydantic:
+	$(UV) run python -m implementations.temporal_pydantic.smoke
+
+smoke-letta:
+	$(UV) run python -m implementations.letta.smoke
+
 smoke-claude-sdk:
 	$(UV) run python -m implementations.claude_sdk.smoke
 
-smoke: smoke-langgraph smoke-claude-sdk
+smoke: smoke-langgraph smoke-temporal-pydantic smoke-letta smoke-claude-sdk
 
 # --- sandboxes -----------------------------------------------------------
 
