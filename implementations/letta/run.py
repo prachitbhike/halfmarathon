@@ -307,6 +307,7 @@ async def run_loop(  # noqa: PLR0915, PLR0912
     speed: float,
     letta_base_url: str = DEFAULT_LETTA_URL,
     agent_name: str = "release-radar",
+    fixtures_dir: Path | None = None,
     **_: Any,
 ) -> dict[str, Any]:
     if not _check_letta_reachable(letta_base_url):
@@ -317,14 +318,15 @@ async def run_loop(  # noqa: PLR0915, PLR0912
 
     state_dir.mkdir(parents=True, exist_ok=True)
     events_log = EventLog(state_dir / "events.jsonl")
+    fx = fixtures_dir or FIXTURES_DIR
     sources = [
         Source.model_validate(s)
-        for s in json.loads((FIXTURES_DIR / "sources.json").read_text())
+        for s in json.loads((fx / "sources.json").read_text())
     ]
 
     clock = FixtureClock.from_fixtures(
-        timeline_path=FIXTURES_DIR / "timeline.json",
-        sources_path=FIXTURES_DIR / "sources.json",
+        timeline_path=fx / "timeline.json",
+        sources_path=fx / "sources.json",
         fixture_start=fixture_start,
         speed=speed,
     )

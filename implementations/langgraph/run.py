@@ -338,14 +338,16 @@ async def run_loop(
     until: datetime,
     speed: float,
     thread_id: str,
+    fixtures_dir: Path | None = None,
 ) -> dict[str, Any]:
     state_dir.mkdir(parents=True, exist_ok=True)
     sqlite_path = state_dir / "checkpoints.sqlite"
     events_log = EventLog(state_dir / "events.jsonl")
 
+    fx = fixtures_dir or FIXTURES_DIR
     clock = FixtureClock.from_fixtures(
-        timeline_path=FIXTURES_DIR / "timeline.json",
-        sources_path=FIXTURES_DIR / "sources.json",
+        timeline_path=fx / "timeline.json",
+        sources_path=fx / "sources.json",
         fixture_start=fixture_start,
         speed=speed,
     )
@@ -354,7 +356,7 @@ async def run_loop(
 
     sources = [
         Source.model_validate(s)
-        for s in json.loads((FIXTURES_DIR / "sources.json").read_text())
+        for s in json.loads((fx / "sources.json").read_text())
     ]
     deps = Deps(
         clock=clock, llm=llm, profile=profile, state_dir=state_dir,

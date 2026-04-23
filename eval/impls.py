@@ -49,6 +49,7 @@ def _wrap_langgraph() -> RunCallable:
         until: datetime,
         speed: float,
         thread_id: str = "eval",
+        fixtures_dir: Path | None = None,
     ) -> dict[str, Any]:
         from implementations.langgraph.run import run_loop  # noqa: PLC0415
         return await run_loop(
@@ -58,6 +59,7 @@ def _wrap_langgraph() -> RunCallable:
             until=until,
             speed=speed,
             thread_id=thread_id,
+            fixtures_dir=fixtures_dir,
         )
 
     return _run
@@ -72,6 +74,7 @@ def _wrap_temporal_pydantic() -> RunCallable:
         until: datetime,
         speed: float,
         thread_id: str = "eval",
+        fixtures_dir: Path | None = None,
     ) -> dict[str, Any]:
         from implementations.temporal_pydantic.run import run_loop  # noqa: PLC0415
         return await run_loop(
@@ -81,6 +84,7 @@ def _wrap_temporal_pydantic() -> RunCallable:
             until=until,
             speed=speed,
             thread_id=thread_id,
+            fixtures_dir=fixtures_dir,
         )
 
     return _run
@@ -95,6 +99,7 @@ def _wrap_letta() -> RunCallable:
         until: datetime,
         speed: float,
         thread_id: str = "eval",
+        fixtures_dir: Path | None = None,
         **_: Any,
     ) -> dict[str, Any]:
         from implementations.letta.run import run_loop  # noqa: PLC0415
@@ -105,6 +110,7 @@ def _wrap_letta() -> RunCallable:
             until=until,
             speed=speed,
             agent_name=f"release-radar-{thread_id}",
+            fixtures_dir=fixtures_dir,
         )
 
     return _run
@@ -129,6 +135,7 @@ def _wrap_claude_sdk() -> RunCallable:
         fixture_start: datetime,
         until: datetime,
         speed: float,
+        fixtures_dir: Path | None = None,
         **_: Any,  # accept and ignore extra kwargs (e.g. thread_id)
     ) -> dict[str, Any]:
         from implementations.claude_sdk.run import run_loop  # noqa: PLC0415
@@ -138,6 +145,7 @@ def _wrap_claude_sdk() -> RunCallable:
             fixture_start=fixture_start,
             until=until,
             speed=speed,
+            fixtures_dir=fixtures_dir,
         )
 
     return _run

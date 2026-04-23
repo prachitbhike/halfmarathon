@@ -243,14 +243,16 @@ async def run_loop(
     fixture_start: datetime,
     until: datetime,
     speed: float,
+    fixtures_dir: Path | None = None,
 ) -> dict[str, Any]:
     state_dir.mkdir(parents=True, exist_ok=True)
     events_log = EventLog(state_dir / "events.jsonl")
     _seed_progress(state_dir, profile, fixture_start)
 
+    fx = fixtures_dir or FIXTURES_DIR
     clock = FixtureClock.from_fixtures(
-        timeline_path=FIXTURES_DIR / "timeline.json",
-        sources_path=FIXTURES_DIR / "sources.json",
+        timeline_path=fx / "timeline.json",
+        sources_path=fx / "sources.json",
         fixture_start=fixture_start,
         speed=speed,
     )

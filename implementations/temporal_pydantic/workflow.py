@@ -49,6 +49,7 @@ class WorkflowArgs:
     fixture_start_iso: str
     until_iso: str
     speed: float
+    fixtures_dir: str | None = None
 
 
 @dataclass
@@ -157,6 +158,7 @@ class ReleaseRadarWorkflow:
                     fixture_now_iso=now.isoformat(),
                     last_fetch_iso=self.last_fetch_iso,
                     speed=args.speed,
+                    fixtures_dir=args.fixtures_dir,
                 ),
                 start_to_close_timeout=_ACTIVITY_TIMEOUT,
                 retry_policy=_DEFAULT_RETRY,
@@ -201,6 +203,7 @@ class ReleaseRadarWorkflow:
                             week_id=wid,
                             kb_json=json.dumps(self.kb),
                             max_items=int(profile.get("max_items_per_digest", 8)),
+                            fixtures_dir=args.fixtures_dir,
                         ),
                         start_to_close_timeout=_ACTIVITY_TIMEOUT,
                         retry_policy=_DEFAULT_RETRY,

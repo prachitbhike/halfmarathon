@@ -3,20 +3,19 @@
 Spec: plant a fact in week 1, query in week 12; verify update propagates if
 the fact is later corrected.
 
-Phase 4 implementation: a *filing* check, not a recall check. We add a probe
-event into the fixture timeline (via fixture override) and verify the agent
-filed it into KB during week 1, including the marker substring.
+Phase 5 implementation: a *filing* check using the fixture-override
+mechanism. We materialize a temp fixtures dir with the probe event added to
+timeline.json and run the impl against it. Then verify the probe event
+landed in the published digest (which is observable for every impl).
 
 Real recall — asking the agent "do you remember X?" after weeks of unrelated
-input — requires (a) a real LLM that can actually recall, and (b) impl-side
-machinery to query an agent's accumulated memory. Letta and Claude SDK could
-support this in a follow-up; LangGraph and Pydantic-AI+Temporal would need a
-deliberate "ask the agent" path that doesn't exist today.
+input — would need an additional impl-side "ask the agent" hook. Out of
+scope for now; tracked as a known gap.
 
 Score:
-    - PASS: probe event made it into KB with the marker substring intact.
-    - PARTIAL: probe filed but marker missing or score low.
-    - FAIL: probe not in KB after the run.
+    - PASS: probe event referenced (by URL) in at least one published digest.
+    - PARTIAL: probe filed in KB (where observable) but not in any digest.
+    - FAIL: probe present in fixture but not anywhere in the impl's outputs.
 """
 
 from __future__ import annotations
@@ -36,6 +35,7 @@ from eval.dimensions.base import (
     expected_week_ids,
     write_approval_for,
 )
+from eval.fixtures_override import build_override
 from eval.impls import ImplSpec
 from task.clock import DEFAULT_FIXTURE_START
 from task.types import UserProfile
@@ -47,13 +47,7 @@ ROOT = Path(__file__).resolve().parents[2]
 PROBE_PATH = ROOT / "task" / "fixtures" / "memory-probes.json"
 
 
-def _load_kb_for_impl(state_dir: Path, impl_id: str) -> list[dict] | None:
-    """Best-effort KB loader. Each impl stores KB differently:
-        - claude_sdk + letta: knowledge_base.json at state_dir root
-        - langgraph + temporal_pydantic: KB lives in checkpointer/workflow
-          state, not on disk; we fall back to scanning published digests.
-    Returns None if we can't observe a KB for this impl.
-    """
+def _load_kb_for_impl(state_dir: Path) -> list[dict] | None:
     p = state_dir / "knowledge_base.json"
     if p.exists():
         try:
@@ -105,19 +99,19 @@ async def run(
 
     probe = json.loads(PROBE_PATH.read_text())
     probe_event = probe["plants"][0]
-    probe_marker: str = probe["queries"][0]["expected_recall_substring"]
+    probe_url = probe_event["url"]
+    probe_id = probe_event["id"]
+
+    fixtures_override_dir = base / "_fixtures_override"
+    build_override(fixtures_override_dir, add_events=[probe_event])
 
     t0 = time.perf_counter()
     try:
-        # Note: we run the impl on the BASE fixture timeline (no override
-        # plumbing exists yet). This means the probe is NOT actually present
-        # in the agent's input stream — so this is currently a structural test
-        # of the harness. Once a fixture-override mechanism lands (Phase 5),
-        # the probe should appear in the impl's KB. Documented in notes.
         result = await spec.run(
             profile=profile, state_dir=base,
             fixture_start=fixture_start, until=fixture_until,
             speed=speed, thread_id="dim4",
+            fixtures_dir=fixtures_override_dir,
         )
     except Exception as exc:
         return DimensionResult(
@@ -128,39 +122,54 @@ async def run(
         )
     elapsed = time.perf_counter() - t0
 
+    kb = _load_kb_for_impl(base)
+    digests = _digest_bodies(base)
+    found_in_kb = (
+        any(it.get("event_id") == probe_id for it in kb) if kb is not None
+        else None
+    )
+    found_in_digest = any(probe_url in body for body in digests)
+
     metrics: dict[str, Any] = {
-        "probe_event_id": probe_event["id"],
-        "probe_marker": probe_marker,
+        "probe_event_id": probe_id,
+        "probe_url": probe_url,
+        "kb_observable": kb is not None,
+        "found_in_kb": found_in_kb,
+        "found_in_digest": found_in_digest,
         "summary": result,
     }
 
-    kb = _load_kb_for_impl(base, spec.id)
-    digests = _digest_bodies(base)
-    found_in_kb = False
-    found_in_digest = False
-    if kb is not None:
-        found_in_kb = any(
-            it.get("event_id") == probe_event["id"]
-            and probe_marker in (it.get("summary") or "")
-            for it in kb
+    if found_in_digest:
+        return DimensionResult(
+            impl_id=spec.id, dimension_id=DIM_ID, dimension_name=DIM_NAME,
+            status=DimensionStatus.PASS,
+            notes=(
+                f"Probe event {probe_id} was filed and surfaced in a "
+                f"published digest (URL match). The impl correctly captured "
+                f"the planted fact."
+            ),
+            metrics=metrics, elapsed_s=elapsed,
         )
-    found_in_digest = any(probe_marker in body for body in digests)
-    metrics["found_in_kb"] = found_in_kb
-    metrics["found_in_digest"] = found_in_digest
 
-    # Until fixture-override lands, this dim cannot actually file the probe
-    # because the probe event isn't in timeline.json. So the honest score is
-    # PARTIAL, with a note on what's missing.
+    if found_in_kb is True:
+        return DimensionResult(
+            impl_id=spec.id, dimension_id=DIM_ID, dimension_name=DIM_NAME,
+            status=DimensionStatus.PARTIAL,
+            notes=(
+                f"Probe event filed in KB but did not make it into any "
+                f"published digest. Probably outranked by other items "
+                f"(max_items_per_digest={profile.max_items_per_digest})."
+            ),
+            metrics=metrics, elapsed_s=elapsed,
+        )
+
     return DimensionResult(
         impl_id=spec.id, dimension_id=DIM_ID, dimension_name=DIM_NAME,
-        status=DimensionStatus.PARTIAL,
+        status=DimensionStatus.FAIL,
         notes=(
-            "Filing-only check: probe event isn't currently injected into "
-            "the impl's input stream (no fixture-override mechanism yet). "
-            "Score will rise to PASS once Phase 5 adds runtime fixture "
-            "augmentation. "
-            f"Sanity counters: kb_observable={kb is not None}, "
-            f"found_in_kb={found_in_kb}, found_in_digest={found_in_digest}."
+            f"Probe event was injected via fixture override but did not "
+            f"appear in KB (kb_observable={kb is not None}) or any digest. "
+            f"The impl is dropping events it ought to keep."
         ),
         metrics=metrics, elapsed_s=elapsed,
     )

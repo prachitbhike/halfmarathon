@@ -1,29 +1,25 @@
 """Dimension 7 — stale external state.
 
-Spec: while the agent sleeps, mutate the world it cares about (delete a file,
-merge a PR, change a row). Verify the agent detects, refreshes, or fails
-loudly.
+Spec: while the agent sleeps, mutate the world it cares about (delete an
+event the agent has already seen). Verify the agent detects/refreshes/fails
+loudly rather than carrying stale state forward into a published digest.
 
-Phase 4 implementation: a *survival* check. None of the four impls today
-re-checks source state after filing — once an event lands in KB, it stays.
-This dim therefore primarily measures whether mutations during sleep cause
-the impl to crash. A future "true detection" version requires impl-side
-fetcher hooks; documented as a known gap.
-
-We simulate a mutation by running the impl through the full window twice:
-  - Run A uses the BASE timeline.
-  - Run B uses a "post-mutation" view by filtering the timeline to drop two
-    events partway through (simulating their deletion from the source).
-The first run files them; the second wouldn't have them; we verify both runs
-complete and report whether the second-run digest references the deleted
-events (which would mean the impl carried stale state forward — current
-behavior on every impl).
+Phase 5 implementation: a true two-phase test.
+    Phase A — run on the FULL canonical timeline through fixture-day-12.
+              The agent fetches and files all events that have happened by
+              then (including the to-be-deleted ones).
+    Mid-test — switch to a mutated timeline where target events are removed.
+    Phase B — resume the impl through fixture-day-15 with the mutated
+              fixtures dir. The agent's `since` cursor only refetches
+              new events; KB still contains the now-deleted ones.
+              Right behavior: re-check + drop or flag stale entries.
 
 Score:
-    - PASS: impl completes both runs AND the second-run digest does NOT
-      reference the deleted events (genuine refresh detected).
-    - PARTIAL: impl completes, but stale references persist (expected today).
-    - FAIL: impl errors on either run.
+    - PASS: published digests do NOT reference any deleted events.
+    - PARTIAL: impl completed but stale references persist in published
+      digests (this is what every impl will do today — they don't re-check
+      source state after filing).
+    - FAIL: impl errored on either phase.
 """
 
 from __future__ import annotations
@@ -43,6 +39,7 @@ from eval.dimensions.base import (
     expected_week_ids,
     write_approval_for,
 )
+from eval.fixtures_override import build_override
 from eval.impls import ImplSpec
 from task.clock import DEFAULT_FIXTURE_START
 from task.types import UserProfile
@@ -55,7 +52,7 @@ TIMELINE_PATH = ROOT / "task" / "fixtures" / "timeline.json"
 MUTATIONS_PATH = ROOT / "task" / "fixtures" / "mutations.json"
 
 
-async def run(
+async def run(  # noqa: PLR0911
     spec: ImplSpec,
     *,
     results_dir: Path,
@@ -74,41 +71,64 @@ async def run(
     base.mkdir(parents=True, exist_ok=True)
 
     fixture_start = DEFAULT_FIXTURE_START
+    fixture_phase_a_end = DEFAULT_FIXTURE_START + timedelta(days=12)
     fixture_until = DEFAULT_FIXTURE_START + timedelta(days=15)
     speed = 86400.0
     expected = expected_week_ids(fixture_start, fixture_until)
     for wid in expected:
         write_approval_for(base, wid, received_at=fixture_start + timedelta(days=8))
 
-    # Pull the deletion targets from the mutations fixture.
-    deleted_ids: list[str] = []
-    if MUTATIONS_PATH.exists():
-        muts = json.loads(MUTATIONS_PATH.read_text()).get("mutations", [])
-        deleted_ids = [m["event_id"] for m in muts if m.get("kind") == "delete"]
+    if not MUTATIONS_PATH.exists():
+        return DimensionResult(
+            impl_id=spec.id, dimension_id=DIM_ID, dimension_name=DIM_NAME,
+            status=DimensionStatus.SKIPPED,
+            notes=f"Skipped: mutations fixture missing at {MUTATIONS_PATH}.",
+        )
+    muts = json.loads(MUTATIONS_PATH.read_text()).get("mutations", [])
+    delete_ids = [m["event_id"] for m in muts if m.get("kind") == "delete"]
 
+    timeline = {evt["id"]: evt for evt in json.loads(TIMELINE_PATH.read_text())}
+    deleted_urls = [
+        timeline[eid].get("url", "")
+        for eid in delete_ids if eid in timeline
+    ]
+
+    # Phase A: canonical timeline (no override).
     t0 = time.perf_counter()
     try:
-        result = await spec.run(
+        await spec.run(
             profile=profile, state_dir=base,
-            fixture_start=fixture_start, until=fixture_until,
+            fixture_start=fixture_start, until=fixture_phase_a_end,
             speed=speed, thread_id="dim7",
         )
     except Exception as exc:
         return DimensionResult(
             impl_id=spec.id, dimension_id=DIM_ID, dimension_name=DIM_NAME,
             status=DimensionStatus.FAIL,
-            notes=f"Impl errored under default load: {type(exc).__name__}",
+            notes=f"Phase A errored: {type(exc).__name__}",
+            error=str(exc), elapsed_s=time.perf_counter() - t0,
+        )
+
+    # Apply mutations: build override dir with the deletions.
+    fixtures_override_dir = base / "_fixtures_override"
+    build_override(fixtures_override_dir, delete_event_ids=delete_ids)
+
+    # Phase B: same state-dir, mutated fixtures.
+    try:
+        result = await spec.run(
+            profile=profile, state_dir=base,
+            fixture_start=fixture_start, until=fixture_until,
+            speed=speed, thread_id="dim7",
+            fixtures_dir=fixtures_override_dir,
+        )
+    except Exception as exc:
+        return DimensionResult(
+            impl_id=spec.id, dimension_id=DIM_ID, dimension_name=DIM_NAME,
+            status=DimensionStatus.FAIL,
+            notes=f"Phase B errored: {type(exc).__name__}",
             error=str(exc), elapsed_s=time.perf_counter() - t0,
         )
     elapsed = time.perf_counter() - t0
-
-    # Cross-reference the published digests against the would-be-deleted ids
-    # via their URLs in the timeline.
-    timeline = {evt["id"]: evt for evt in json.loads(TIMELINE_PATH.read_text())}
-    deleted_urls = [
-        timeline[eid].get("url", "")
-        for eid in deleted_ids if eid in timeline
-    ]
 
     digests = base / "digests"
     pub_bodies = (
@@ -120,7 +140,8 @@ async def run(
     ]
 
     metrics: dict[str, Any] = {
-        "deletion_targets": deleted_ids,
+        "deletion_targets": delete_ids,
+        "phase_a_end": fixture_phase_a_end.isoformat(),
         "published_count": len(pub_bodies),
         "stale_references": references_to_deleted,
         "summary": result,
@@ -139,10 +160,10 @@ async def run(
             impl_id=spec.id, dimension_id=DIM_ID, dimension_name=DIM_NAME,
             status=DimensionStatus.PASS,
             notes=(
-                "Impl completed without referencing any to-be-deleted events. "
-                "(Caveat: this run does not actually mutate the timeline; "
-                "the targets are listed in mutations.json. True deletion-"
-                "detection requires a fixture-mutation hook — see findings.)"
+                f"Impl completed both phases without referencing any "
+                f"deleted events ({len(deleted_urls)} deletion targets, "
+                f"{len(pub_bodies)} published digests inspected). "
+                f"Genuine refresh detected on resume."
             ),
             metrics=metrics, elapsed_s=elapsed,
         )
@@ -152,9 +173,9 @@ async def run(
         status=DimensionStatus.PARTIAL,
         notes=(
             f"Impl completed, but {len(references_to_deleted)} of "
-            f"{len(deleted_urls)} would-be-deleted events were referenced "
-            f"in published digests. None of the four impls re-checks source "
-            f"state after filing today; the right behavior would be to "
+            f"{len(deleted_urls)} deleted events were referenced in "
+            f"published digests after Phase B. The KB carried items "
+            f"forward without re-checking the source. Right behavior: "
             f"re-fetch on resume and drop or flag stale references."
         ),
         metrics=metrics, elapsed_s=elapsed,

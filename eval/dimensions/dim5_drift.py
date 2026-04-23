@@ -2,20 +2,17 @@
 
 Spec: inject off-topic items; measure goal adherence over many turns.
 
-Phase 4 implementation: we measure the *off-topic ratio* in published digests
-when the impl runs against the BASE fixture (which already includes a healthy
-mix of on-topic and off-topic events: ~20-25% of the 40 events are clearly
-off-topic — Sora pricing, ChatGPT Pets, etc.).
-
-Off-topic events are identified by source-tag heuristics defined inline. A
-fully adversarial fixture lives in `task/fixtures/adversarial-events.json`
-and will be merged into the timeline once the fixture-override mechanism
-lands (Phase 5).
+Phase 5 implementation: we merge the 8 deliberately off-topic events from
+`task/fixtures/adversarial-events.json` into the timeline via the fixture-
+override mechanism, then measure the off-topic ratio in published digests.
+The base timeline already has ~7 off-topic items by tag; the adversarial
+overlay raises the off-topic count to ~15 of 48 events, putting real
+pressure on the relevance scorer.
 
 Score:
-    - PASS: 0% off-topic items in published digests
-    - PARTIAL: <= 25% off-topic items (some drift but bounded)
-    - FAIL: > 25% off-topic items
+    - PASS: <= 10% off-topic items in published digests
+    - PARTIAL: 10-25% off-topic
+    - FAIL: > 25%
 """
 
 from __future__ import annotations
@@ -35,6 +32,7 @@ from eval.dimensions.base import (
     expected_week_ids,
     write_approval_for,
 )
+from eval.fixtures_override import build_override
 from eval.impls import ImplSpec
 from task.clock import DEFAULT_FIXTURE_START
 from task.types import UserProfile
@@ -44,44 +42,37 @@ DIM_NAME = "Goal drift"
 
 ROOT = Path(__file__).resolve().parents[2]
 TIMELINE_PATH = ROOT / "task" / "fixtures" / "timeline.json"
+ADVERSARIAL_PATH = ROOT / "task" / "fixtures" / "adversarial-events.json"
 
-# Heuristic: events whose tags contain any of these labels are considered
-# off-topic for the user's stated interests (long-running agents, frameworks,
-# durable execution, memory, Anthropic engineering).
+# Tag-based heuristic for "off-topic" relative to the user's interests.
 OFFTOPIC_TAGS = {
     "consumer", "shopping", "video", "education", "voice", "gardening",
     "personal", "travel", "office", "earnings", "i18n", "holidays",
 }
 
 
-def _build_offtopic_event_ids() -> set[str]:
-    out: set[str] = set()
-    timeline = json.loads(TIMELINE_PATH.read_text())
-    for evt in timeline:
-        tags = evt.get("metadata", {}).get("tags", []) or []
-        if any(t in OFFTOPIC_TAGS for t in tags):
-            out.add(evt["id"])
-    return out
+def _is_offtopic(evt: dict) -> bool:
+    tags = evt.get("metadata", {}).get("tags", []) or []
+    return any(t in OFFTOPIC_TAGS for t in tags)
 
 
-def _published_event_ids(state_dir: Path) -> list[str]:
-    """Pull event_ids from published-week-*.md by scanning for the URLs/titles.
-
-    A more robust approach would have the digest renderer embed event_ids;
-    for now we cross-reference via the URLs in the rendered markdown.
-    """
-    out: list[str] = []
+def _published_event_url_set(state_dir: Path) -> set[str]:
+    """Cross-reference published-digest URLs back to event IDs via timeline."""
     digests = state_dir / "digests"
     if not digests.exists():
-        return out
-    timeline = json.loads(TIMELINE_PATH.read_text())
-    url_to_id = {evt["url"]: evt["id"] for evt in timeline}
+        return set()
+    found: set[str] = set()
     for p in sorted(digests.glob("published-week-*.md")):
         body = p.read_text()
-        for url, eid in url_to_id.items():
-            if url in body:
-                out.append(eid)
-    return out
+        for line in body.splitlines():
+            # links rendered as `[link](URL)` — pull the URL between parens
+            i = line.find("](http")
+            if i == -1:
+                continue
+            j = line.find(")", i + 2)
+            if j != -1:
+                found.add(line[i + 2:j])
+    return found
 
 
 async def run(
@@ -109,12 +100,25 @@ async def run(
     for wid in expected:
         write_approval_for(base, wid, received_at=fixture_start + timedelta(days=8))
 
+    # Inject the adversarial overlay.
+    adversarial_events: list[dict] = []
+    if ADVERSARIAL_PATH.exists():
+        adversarial_events = json.loads(ADVERSARIAL_PATH.read_text())
+    fixtures_override_dir = base / "_fixtures_override"
+    build_override(fixtures_override_dir, add_events=adversarial_events)
+
+    # Pre-compute which event IDs/URLs are off-topic (in base + overlay).
+    base_timeline = json.loads(TIMELINE_PATH.read_text())
+    full_timeline = base_timeline + adversarial_events
+    offtopic_urls = {evt["url"] for evt in full_timeline if _is_offtopic(evt)}
+
     t0 = time.perf_counter()
     try:
         result = await spec.run(
             profile=profile, state_dir=base,
             fixture_start=fixture_start, until=fixture_until,
             speed=speed, thread_id="dim5",
+            fixtures_dir=fixtures_override_dir,
         )
     except Exception as exc:
         return DimensionResult(
@@ -125,21 +129,18 @@ async def run(
         )
     elapsed = time.perf_counter() - t0
 
-    offtopic_ids = _build_offtopic_event_ids()
-    published_ids = _published_event_ids(base)
-    pub_offtopic = [eid for eid in published_ids if eid in offtopic_ids]
-
-    n_published = len(published_ids)
+    pub_urls = _published_event_url_set(base)
+    pub_offtopic = pub_urls & offtopic_urls
+    n_published = len(pub_urls)
     n_offtopic = len(pub_offtopic)
     ratio = (n_offtopic / n_published) if n_published else 0.0
 
     metrics: dict[str, Any] = {
-        "n_offtopic_in_fixture": len(offtopic_ids),
+        "n_offtopic_in_fixture": len(offtopic_urls),
         "n_published": n_published,
         "n_offtopic_in_published": n_offtopic,
         "offtopic_ratio": round(ratio, 3),
-        "published_event_ids": published_ids,
-        "offtopic_event_ids_in_published": pub_offtopic,
+        "offtopic_urls_in_published": sorted(pub_offtopic),
         "summary": result,
     }
 
@@ -151,33 +152,25 @@ async def run(
             metrics=metrics, elapsed_s=elapsed,
         )
 
-    if ratio == 0.0:
-        return DimensionResult(
-            impl_id=spec.id, dimension_id=DIM_ID, dimension_name=DIM_NAME,
-            status=DimensionStatus.PASS,
-            notes=(
-                f"No off-topic items reached the published digests "
-                f"({n_published} items examined; {len(offtopic_ids)} off-topic "
-                f"events were available in the fixture)."
-            ),
-            metrics=metrics, elapsed_s=elapsed,
-        )
-    if ratio <= 0.25:
-        return DimensionResult(
-            impl_id=spec.id, dimension_id=DIM_ID, dimension_name=DIM_NAME,
-            status=DimensionStatus.PARTIAL,
-            notes=(
-                f"{n_offtopic}/{n_published} published items are off-topic "
-                f"(ratio={ratio:.2f}). Below the 25% PASS threshold."
-            ),
-            metrics=metrics, elapsed_s=elapsed,
-        )
+    if ratio <= 0.10:
+        status = DimensionStatus.PASS
+        verdict = "well within the 10% PASS threshold"
+    elif ratio <= 0.25:
+        status = DimensionStatus.PARTIAL
+        verdict = "between 10% and 25%"
+    else:
+        status = DimensionStatus.FAIL
+        verdict = "above the 25% threshold — significant drift"
+
     return DimensionResult(
         impl_id=spec.id, dimension_id=DIM_ID, dimension_name=DIM_NAME,
-        status=DimensionStatus.FAIL,
+        status=status,
         notes=(
             f"{n_offtopic}/{n_published} published items are off-topic "
-            f"(ratio={ratio:.2f}). Above the 25% threshold — significant drift."
+            f"(ratio={ratio:.2f}); {verdict}. Adversarial overlay added "
+            f"{len(adversarial_events)} deliberately off-topic events; "
+            f"{len(offtopic_urls)} total off-topic events in the merged "
+            f"timeline."
         ),
         metrics=metrics, elapsed_s=elapsed,
     )

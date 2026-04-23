@@ -64,6 +64,7 @@ async def run_loop(
     until: datetime,
     speed: float,
     thread_id: str = "default",
+    fixtures_dir: Path | None = None,
 ) -> dict[str, Any]:
     """Drive one workflow execution to completion and return its summary.
 
@@ -99,6 +100,7 @@ async def run_loop(
                 fixture_start_iso=fixture_start.isoformat(),
                 until_iso=until.isoformat(),
                 speed=speed,
+                fixtures_dir=str(fixtures_dir) if fixtures_dir else None,
             )
             handle = await client.start_workflow(
                 ReleaseRadarWorkflow.run,

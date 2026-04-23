@@ -63,6 +63,7 @@ class FetchEventsInput:
     fixture_now_iso: str
     last_fetch_iso: str | None
     speed: float
+    fixtures_dir: str | None = None  # override default fixtures location
 
 
 @dataclass
@@ -73,9 +74,10 @@ class FetchEventsOutput:
 
 @activity.defn
 async def fetch_events(req: FetchEventsInput) -> FetchEventsOutput:
+    fx = Path(req.fixtures_dir) if req.fixtures_dir else FIXTURES
     clock = FixtureClock.from_fixtures(
-        timeline_path=FIXTURES / "timeline.json",
-        sources_path=FIXTURES / "sources.json",
+        timeline_path=fx / "timeline.json",
+        sources_path=fx / "sources.json",
         fixture_start=datetime.fromisoformat(req.fixture_start_iso),
         speed=req.speed,
     )
@@ -194,6 +196,7 @@ class DraftDigestInput:
     week_id: str
     kb_json: str
     max_items: int
+    fixtures_dir: str | None = None  # override default fixtures location
 
 
 @dataclass
@@ -208,7 +211,8 @@ async def draft_digest(req: DraftDigestInput) -> DraftDigestOutput:
     week_start = datetime.fromisoformat(req.week_start_iso)
     week_end = datetime.fromisoformat(req.week_end_iso)
     kb_items = [KnowledgeBaseItem.model_validate(d) for d in json.loads(req.kb_json)]
-    sources = json.loads((FIXTURES / "sources.json").read_text())
+    fx = Path(req.fixtures_dir) if req.fixtures_dir else FIXTURES
+    sources = json.loads((fx / "sources.json").read_text())
     source_name_by_id = {s["id"]: s["name"] for s in sources}
     items = items_from_kb(
         kb_items, source_name_by_id=source_name_by_id,

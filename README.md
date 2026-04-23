@@ -9,8 +9,10 @@ One canonical task ("Release Radar"), four implementations spanning orthogonal p
 Most "agent framework comparison" content is a feature checklist or a vibes-based survey. This repo is the opposite: the **same task, run for 8 hours of compressed time, against four real implementations**, scored on 8 long-running-specific dimensions, with the cost ledger and findings published.
 
 Read first:
+- [findings.md](findings.md) — **the honest take** after running the experiment
 - [research.md](research.md) — landscape survey of frameworks, vendor SDKs, and patterns for long-running agents
 - [plan.md](plan.md) — what we're building and why
+- [CONTRIBUTING.md](CONTRIBUTING.md) — adding a new impl or dimension
 
 ## The four implementations
 
@@ -94,15 +96,11 @@ halfmarathon/
 
 ## Status
 
-**Phase 4** — all 8 evaluation dimensions land. Current matrix snapshot ([results/eval-matrix.md](results/eval-matrix.md)) for the two API-key-free impls (langgraph, temporal_pydantic) running in offline mock mode:
+**Phase 5 complete.** Fixture-override mechanism, all 8 dimensions exercised against real injected events, [findings.md](findings.md) written, repo polished for public consumption. See [results/eval-matrix.md](results/eval-matrix.md) for the latest snapshot.
 
-- **5/8 PASS** per impl: crash recovery (1), multi-day + multi-restart (2), structural continuity (3), HITL gate (6), replay determinism (8)
-- **3/8 PARTIAL** per impl with documented limitations:
-  - Dim 4 (memory recall): probe event isn't injected into the impl's input stream — needs a fixture-override mechanism (Phase 5)
-  - Dim 5 (goal drift): offline keyword matcher lets ~12% off-topic items through (under PASS threshold of 25%)
-  - Dim 7 (stale state): no impl currently re-checks source state after filing — a real finding for production
+Two impls (langgraph, temporal_pydantic) run in offline mock mode for free. Letta and Claude SDK skip pending server/API access — their columns will populate when the keys are set.
 
-`letta` and `claude_sdk` skip pending server/API access. Phase 5 next: findings.md writeup, fixture-override mechanism, e2b sandbox build.
+The honest cross-impl story is in [findings.md](findings.md). The main production-relevant gap surfaced by the matrix: **none of the four impls re-checks source state after filing** (dim 7), which means stale entries can persist into published digests after a source mutates. That's the kind of finding the test bed exists for.
 
 ### Implementations
 - `implementations/langgraph/` — graph + AsyncSqliteSaver + `interrupt()`-based HITL. Offline-mock smoke = free.
