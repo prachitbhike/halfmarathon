@@ -33,6 +33,7 @@ results/*.sqlite
 
 # Implementation-local state
 implementations/*/state/
+implementations/*/state-*/
 implementations/*/.checkpoints/
 implementations/*/letta-data/
 implementations/*/temporal-data/

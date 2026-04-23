@@ -92,7 +92,12 @@ halfmarathon/
 
 ## Status
 
-**Phase 0** — foundations. Task spec + fixtures + shared types + fixture clock + e2b sandbox skeletons. No implementations yet.
+**Phase 1** — first two implementations land:
+
+- `implementations/langgraph/` — full graph + AsyncSqliteSaver + `interrupt()`-based HITL gate. End-to-end smoke (`make smoke-langgraph`) runs against the full 14-day fixture in offline mode and publishes both expected weekly digests.
+- `implementations/claude_sdk/` — file-as-memory ("Ralph loop") harness: per-tick fresh `query()`, agent maintains `progress.md` + `knowledge_base.json` + `digests/` itself using built-in Read/Write/Edit/Bash. Smoke (`make smoke-claude-sdk`) requires `ANTHROPIC_API_KEY` and costs ~$0.10–$0.50.
+
+Phase 2 (eval harness for fast dimensions) and Phase 3 (Pydantic AI + Temporal, Letta) are next.
 
 ## License
 

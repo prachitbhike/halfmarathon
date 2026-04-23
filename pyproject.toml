@@ -12,19 +12,22 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Per-impl extras land in Phase 1+. Skeletons declared so `uv sync --extra X`
-# works without erroring even before deps are pinned.
-langgraph = []
-temporal-pydantic = []
-letta = []
-claude-sdk = []
+langgraph = [
+    "langgraph>=1.1",
+    "langgraph-checkpoint-sqlite>=3.0",
+]
+temporal-pydantic = []  # Phase 3
+letta = []              # Phase 3
+claude-sdk = [
+    "claude-agent-sdk>=0.1.65",
+]
 eval = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
     "rich>=13.7",
 ]
 dev = [
-    "halfmarathon[eval]",
+    "halfmarathon[eval,langgraph,claude-sdk]",
     "ruff>=0.5",
     "mypy>=1.10",
 ]
