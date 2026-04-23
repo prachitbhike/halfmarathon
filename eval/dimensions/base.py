@@ -63,13 +63,14 @@ class DimensionResult:
 def expected_week_ids(start: datetime, until: datetime) -> list[str]:
     """Week ids the agent should publish across the [start, until) window.
 
-    A digest is drafted on Sunday for the prior 7 days, so this enumerates
-    each Sunday in the window and returns its (week_start - 7d) week id.
+    All four impls use a Monday-only draft trigger (ISO week Mon-Sun is fully
+    observable by Monday morning), so this enumerates each Monday in the
+    window and returns its (week_start - 7d) week id.
     """
     out: list[str] = []
     d = start
     while d < until:
-        if d.weekday() == 6:
+        if d.weekday() == 0:  # Monday
             week_start = (d - timedelta(days=7)).replace(
                 hour=0, minute=0, second=0, microsecond=0
             )

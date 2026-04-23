@@ -210,7 +210,10 @@ class ReleaseRadarWorkflow:
                 self.kb.extend(new_items)
 
             # 3) maybe draft a weekly digest
-            if self.pending is None and now.weekday() in (0, 6):
+            # Monday-only draft trigger: ISO week (Mon-Sun) is fully observable
+            # by Monday morning, so week_id_for(now - 7d) lines up cleanly with
+            # one complete week.
+            if self.pending is None and now.weekday() == 0:
                 week_start = (now - timedelta(days=7)).replace(
                     hour=0, minute=0, second=0, microsecond=0
                 )

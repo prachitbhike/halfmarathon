@@ -93,7 +93,7 @@ async def run(
 
     fixture_start = DEFAULT_FIXTURE_START
     fixture_until = DEFAULT_FIXTURE_START + timedelta(days=15)
-    speed = 86400.0
+    speed = float(os.environ.get("HALFMARATHON_DIM_SPEED", "86400"))
     expected = expected_week_ids(fixture_start, fixture_until)
 
     for d in (run_a, run_b):
