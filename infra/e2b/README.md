@@ -11,7 +11,6 @@ infra/e2b/
   base/            # shared base image (Python + uv + repo + fixtures)
   langgraph/       # LangGraph + Postgres
   temporal-pydantic/   # Pydantic AI + Temporal dev server
-  letta/           # Letta server + Postgres
   claude-sdk/      # Claude Agent SDK (no infra deps)
 ```
 
@@ -52,8 +51,8 @@ e2b template build
 
 Three reasons:
 1. **Honest comparison** — each impl's image only has its own deps. Cold-start, image size, and "what does it actually take to ship this thing" become measurable.
-2. **Isolation** — Letta needs Postgres, Temporal needs the dev server, the others don't. Mixing them masks the operational footprint.
-3. **Parallelism** — when we run all four in parallel for the 8h compressed test, they don't share state.
+2. **Isolation** — Temporal needs the dev server, the others don't. Mixing them masks the operational footprint.
+3. **Parallelism** — when we run all three in parallel for the 8h compressed test, they don't share state.
 
 ## Sandbox lifetime
 

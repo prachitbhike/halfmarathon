@@ -25,16 +25,15 @@ A serious comparison must exercise all of these — see [§7 Test Dimensions](#7
 
 ---
 
-## 2. The four schools of thought
+## 2. The three schools of thought
 
-Frameworks cluster into roughly four philosophies:
+Frameworks cluster into roughly three philosophies:
 
 1. **Workflow engine + thin agent.** A real durable execution engine (Temporal, Restate, DBOS) handles persistence; the agent layer is just code. Maximum flexibility, maximum operational responsibility.
 2. **Graph + checkpointer.** A state-machine library (LangGraph, LlamaIndex Workflows, Pydantic Graph) with pluggable persistence backends. Good defaults; abstraction tax.
-3. **Stateful-by-design agent server.** The agent is a server-resident object with durable identity and a memory hierarchy (Letta). Persistence isn't bolted on — it's the architecture.
-4. **Vendor-managed runtime.** SDK + hosted execution (Anthropic Managed Agents, OpenAI Agents SDK, Cloudflare Agents). You stop running infrastructure; you accept lock-in.
+3. **Vendor-managed runtime.** SDK + hosted execution (Anthropic Managed Agents, OpenAI Agents SDK, Cloudflare Agents). You stop running infrastructure; you accept lock-in.
 
-Most production "long-running agent" stories combine two: e.g. LangGraph + Postgres checkpointer (school 2), or Pydantic AI on Temporal (school 1+2), or Claude Agent SDK with file-as-memory in a Modal container (school 4 + 1).
+Most production "long-running agent" stories combine two: e.g. LangGraph + Postgres checkpointer (school 2), or Pydantic AI on Temporal (school 1+2), or Claude Agent SDK with file-as-memory in a Modal container (school 3 + 1).
 
 ---
 
@@ -89,16 +88,6 @@ The de facto reference for "durable agents." First-class **checkpointer** abstra
 - **Self-host the OSS lib or LangGraph Platform** (managed deployment, scaling, Studio IDE, persistence APIs).
 - **Gotchas:** state can balloon if you stash large payloads in graph state (externalize to Store/blob); re-entry semantics force you to mark non-deterministic ops as `task` or risk double execution; LangGraph Platform is opinionated.
 
-### Letta (formerly MemGPT)
-The only framework whose entire architecture is built around stateful agent identity. **Server-resident agents** — you run a Letta server (Postgres-backed), agents live there with persistent identity until deleted. Memory is the most opinionated in the field:
-
-- **Memory blocks** (labeled, editable in-context units the LLM rewrites via tools)
-- **Recall memory** (searchable conversation history)
-- **Archival memory** (vector store, unbounded)
-- **MemFS / context repositories (2026)** — memory projected into git-backed files manipulated by generic computer-use tools. Big architectural shift away from bespoke memory tools.
-
-V1 agent loop (April 2026) drops MemGPT heartbeats for native model reasoning + explicit "continue / call tool / terminate" decisions per step. Python + TS clients. Self-host or Letta Cloud. **Memory is portable across model providers** — explicit "own your memory" pitch.
-
 ### Pydantic AI
 Type-safe Pythonic agent framework. **Delegates durability to four officially supported engines: Temporal, DBOS, Prefect, Restate.** The team co-maintains these integrations and uses only public Pydantic AI APIs — they're reference implementations, not magic. Strongest correctness ergonomics (typed deps, typed outputs, structured tools). No built-in memory layer — you bring your own.
 
@@ -131,7 +120,7 @@ Python framework bundling agent + DB + runtime + control plane (`AgentOS`). Thre
 ### Semantic Kernel
 **Superseded by Microsoft Agent Framework for new agent work.** SK v1.x kept for security/critical bug fixes only. Only framework here with serious Java support — relevant if you have an existing SK codebase or need JVM.
 
-**Honest take:** for a comparative test, the differentiated picks are **LangGraph** (reference standard, durable + HITL + cron), **Letta** (memory-first stateful identity), **Pydantic AI + Temporal/DBOS** (thin-agent-on-real-engine school), **Mastra** (TS-native + observational memory). CrewAI / AutoGen / SK / LlamaIndex Workflows / Agno / Smolagents are out of scope for this brief.
+**Honest take:** for a comparative test, the differentiated picks are **LangGraph** (reference standard, durable + HITL + cron), **Pydantic AI + Temporal/DBOS** (thin-agent-on-real-engine school), **Mastra** (TS-native + observational memory). CrewAI / AutoGen / SK / LlamaIndex Workflows / Agno / Smolagents are out of scope for this brief.
 
 ---
 
@@ -181,13 +170,12 @@ Long-term memory is a separable concern. Most frameworks let you plug in one of 
 
 | Library | Model | Best for | Open source |
 |---|---|---|---|
-| **Letta** (in-built) | OS-inspired tiered (core in-context, recall = history, archival = vector). LLM decides what to page in via tool calls. | LLM-driven memory management; "own your memory" | Yes |
 | **Mem0** | Managed cloud-first, three scopes (user/session/agent), hybrid vector + graph + KV | Fastest to production, weakest sovereignty | Partially |
 | **Zep / Graphiti** | Temporal knowledge graph; tracks how facts change over time with full history | Multi-hop relational queries, temporal correctness | Partially |
 | **LangMem SDK** | Models all four memory types (working, episodic, semantic, procedural). Procedural = self-editing system prompts. | LangGraph users; procedural memory experiments | Yes |
 | **Cognee** | Knowledge graph + embeddings; sessionized memory tools for LangGraph | Open-source graph memory | Yes |
 
-**Trade-off:** vector wins on semantic recall (Mem0), tiered wins on continuity (Letta), graph wins on multi-hop and temporal (Zep).
+**Trade-off:** vector wins on semantic recall (Mem0), graph wins on multi-hop and temporal (Zep).
 
 ---
 
@@ -198,7 +186,7 @@ To meaningfully differentiate frameworks, the test app must *force* each long-ru
 1. **Crash mid-tool-call.** Kill the process between an LLM decision and the tool's side effect. Did the tool execute zero or one times after recovery? *(Tests durability + idempotency.)*
 2. **Multi-week wall-clock with sleeps.** Genuinely span ≥7 days with scheduled wake-ups (e.g., weekly RSS summary, alert on X). Measure infra cost/day and recovery from a 24h sleep across a deploy. *(Tests scheduled wake-ups, ambient triggers, idle-hour cost.)*
 3. **Cross-window continuity.** Total context exceeds 5× the window — refactor a 200-feature codebase, or read 50 long PDFs and synthesize. Measure quality after compaction vs baseline. *(Tests compaction, note-taking, sub-agent delegation, file-as-memory.)*
-4. **Memory recall over time.** Inject a fact in session 1; query for it in session 12 after 50K tokens of unrelated work. Update in session 7 — does session 12 return current or stale? *(Differentiates Mem0 vs Zep vs Letta.)*
+4. **Memory recall over time.** Inject a fact in session 1; query for it in session 12 after 50K tokens of unrelated work. Update in session 7 — does session 12 return current or stale? *(Differentiates Mem0 vs Zep.)*
 5. **Goal drift under adversarial pressure.** Long task with off-goal sub-requests injected. Measure goal adherence over 100+ turns. *(Reproduces arXiv 2505.02709.)*
 6. **Human approval gate spanning hours.** Agent proposes; humans approve 4 hours later. Verify state survives, no double-execution, context still coherent. *(Tests interrupt/resume across long pauses.)*
 7. **Stale external state.** While agent sleeps, mutate the world it cares about (delete a file, merge a PR, change a row). Detect, refresh, or fail loudly? *(Tests JIT retrieval, optimistic concurrency.)*
@@ -207,27 +195,26 @@ To meaningfully differentiate frameworks, the test app must *force* each long-ru
 Optional:
 
 9. **Cost regression.** Run identical task with caching on/off; measure dollar delta.
-10. **Procedural memory.** Does the agent measurably improve after 20 sessions of feedback, without prompt edits? Only LangMem and Letta make this first-class.
+10. **Procedural memory.** Does the agent measurably improve after 20 sessions of feedback, without prompt edits? Only LangMem makes this first-class.
 
 ---
 
 ## 8. Honest recommendation: which to test
 
-You can't fairly compare 15 frameworks. Pick a subset that spans **orthogonal philosophies**, not minor variants. Recommended four-way matrix:
+You can't fairly compare 15 frameworks. Pick a subset that spans **orthogonal philosophies**, not minor variants. Recommended three-way matrix:
 
 | Approach | Representative | Why this slot |
 |---|---|---|
 | **Workflow engine + thin agent** | Pydantic AI on **Temporal** (Python) | The "let a real engine handle durability" school. Standard Anthropic against. |
 | **Graph + checkpointer** | **LangGraph** + Postgres checkpointer | Reference standard for durable agents. Will be implicitly compared against everything else. |
-| **Stateful-by-design agent server** | **Letta** | Only architecture where state isn't bolted on. Stress-tests the memory dimension. |
 | **Vendor-managed harness** | **Claude Agent SDK** (file-based memory, Anthropic's harness pattern) | Most coherent end-to-end story for long-horizon coding/research; published research backing. |
 
 **Reasoned omissions:**
 
-- **Convex / Cloudflare Agents** — interesting but JS-only; if the test app is Python (more agent ecosystem maturity), they don't slot in cleanly. Add as a 5th if you commit to TS.
+- **Convex / Cloudflare Agents** — interesting but JS-only; if the test app is Python (more agent ecosystem maturity), they don't slot in cleanly. Add as a 4th if you commit to TS.
 - **Mastra** — same reasoning; the right pick if going TS-first.
 - **OpenAI Agents SDK + Temporal** — overlaps Pydantic AI + Temporal philosophically; pick one.
-- **Anthropic Managed Agents** — interesting "skip the ops" tier, but at $0.08/runtime-hour for week-long runs across 4 implementations, the bill matters. Treat as a stretch goal.
+- **Anthropic Managed Agents** — interesting "skip the ops" tier, but at $0.08/runtime-hour for week-long runs across 3 implementations, the bill matters. Treat as a stretch goal.
 - **CrewAI / AutoGen / Agno / Semantic Kernel / LlamaIndex Workflows / Smolagents** — out of scope for "long-running."
 - **Vertex / Bedrock / Azure Foundry** — cloud-vendor lock-in plays first, SDKs second. Include only if the org is already deeply on that cloud.
 

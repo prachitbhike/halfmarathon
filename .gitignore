@@ -39,7 +39,6 @@ results/**/*.sqlite
 implementations/*/state/
 implementations/*/state-*/
 implementations/*/.checkpoints/
-implementations/*/letta-data/
 implementations/*/temporal-data/
 implementations/*/postgres-data/
 

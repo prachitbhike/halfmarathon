@@ -1,5 +1,5 @@
 # Claude Agent SDK impl
-# Plain Python — no Postgres, no Temporal, no Letta server.
+# Plain Python — no Postgres, no Temporal, no extra server.
 # Persistence is files + git in the sandbox FS.
 
 FROM halfmarathon-base:latest

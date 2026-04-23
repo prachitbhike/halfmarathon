@@ -2,10 +2,10 @@
 
 Pull requests welcome — especially for:
 
-- A 5th implementation (Convex / Cloudflare Agents / Mastra / DBOS — the
+- A 4th implementation (Convex / Cloudflare Agents / Mastra / DBOS — the
   TS-native ones we deliberately scoped out in [plan.md](plan.md))
 - Better fixtures (a months-long timeline would unlock real dim 3 evaluation)
-- Real-LLM dim runs from the cloud impls (Letta + Claude SDK columns
+- Real-LLM dim runs from the cloud impl (Claude SDK column
   would populate the matrix)
 - A new dimension test — see [eval/dimensions/base.py](eval/dimensions/base.py)
   for the `DimensionResult` shape
@@ -21,7 +21,6 @@ make typecheck     # mypy on task/
 # Smoke whichever impl you touched:
 make smoke-langgraph         # offline mock; free
 make smoke-temporal-pydantic # offline mock; free
-make smoke-letta             # needs LETTA_BASE_URL
 make smoke-claude-sdk        # needs ANTHROPIC_API_KEY (~$0.10–$0.50)
 
 # If you changed a dim or an impl, re-run the matrix:

@@ -2,7 +2,7 @@
 
 _Generated from `results/eval-summary.json` (2026-04-23T05:55:05.994595+00:00 → 2026-04-23T06:02:15.630883+00:00)._
 
-Impls run: langgraph, temporal_pydantic.  Skipped: letta, claude_sdk.
+Impls run: langgraph, temporal_pydantic.  Skipped: claude_sdk.
 
 ## Status legend
 

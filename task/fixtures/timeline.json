@@ -30,16 +30,6 @@
     "metadata": {"tags": ["sora", "video", "api"]}
   },
   {
-    "id": "evt_0004",
-    "source_id": "letta-releases",
-    "fixture_timestamp": "2026-04-02T11:42:00Z",
-    "kind": "release",
-    "title": "letta v1.4.0 — MemFS GA",
-    "url": "https://github.com/letta-ai/letta/releases/tag/v1.4.0",
-    "body_md": "MemFS — agent memory projected as git-backed files manipulated through generic computer-use tools — graduates from preview to GA. Replaces bespoke memory_block tools for new agents; existing agents can opt in via `migrate-memfs`.",
-    "metadata": {"version": "1.4.0", "breaking": false}
-  },
-  {
     "id": "evt_0005",
     "source_id": "langchain-blog",
     "fixture_timestamp": "2026-04-02T15:20:00Z",
@@ -160,16 +150,6 @@
     "metadata": {"tags": ["product", "consumer"]}
   },
   {
-    "id": "evt_0017",
-    "source_id": "letta-releases",
-    "fixture_timestamp": "2026-04-08T09:25:00Z",
-    "kind": "release",
-    "title": "letta v1.4.1 — MemFS bugfixes, Postgres connection pool tuning",
-    "url": "https://github.com/letta-ai/letta/releases/tag/v1.4.1",
-    "body_md": "Fixes a race condition in MemFS where two concurrent tools could overwrite each other's edits. Default Postgres pool sized to CPU count; previously hard-coded to 4.",
-    "metadata": {"version": "1.4.1"}
-  },
-  {
     "id": "evt_0018",
     "source_id": "langchain-blog",
     "fixture_timestamp": "2026-04-08T14:00:00Z",
@@ -248,16 +228,6 @@
     "url": "https://www.anthropic.com/news/managed-agents-pricing",
     "body_md": "Runtime price reduced from $0.08 to $0.06 per agent-hour. Waitlist for the next 5,000 customers opens today.",
     "metadata": {"tags": ["managed-agents", "pricing"]}
-  },
-  {
-    "id": "evt_0026",
-    "source_id": "letta-releases",
-    "fixture_timestamp": "2026-04-11T09:00:00Z",
-    "kind": "release",
-    "title": "letta v1.5.0 — first-class HITL approval primitives",
-    "url": "https://github.com/letta-ai/letta/releases/tag/v1.5.0",
-    "body_md": "New `requires_approval` flag on tools and `letta_client.approvals.respond(approval_id, decision)` API. Approvals are stored in Postgres and survive restarts indefinitely.",
-    "metadata": {"version": "1.5.0"}
   },
   {
     "id": "evt_0027",
@@ -348,16 +318,6 @@
     "url": "https://www.anthropic.com/engineering/sub-agents-best-practices",
     "body_md": "What we've learned watching customers use sub-agents at scale: keep sub-agent prompts under 500 tokens, never spawn recursively, and always require a structured return type. The third rule is the one most often violated.",
     "metadata": {"tags": ["claude-agent-sdk", "sub-agents", "patterns"]}
-  },
-  {
-    "id": "evt_0036",
-    "source_id": "letta-releases",
-    "fixture_timestamp": "2026-04-14T14:20:00Z",
-    "kind": "release",
-    "title": "letta v1.5.1 — bugfix for HITL deadlock under concurrent approvals",
-    "url": "https://github.com/letta-ai/letta/releases/tag/v1.5.1",
-    "body_md": "Fixes a deadlock when multiple approval requests on the same agent are answered out of order. Adds an `approvals.list(agent_id, status='pending')` helper.",
-    "metadata": {"version": "1.5.1"}
   },
   {
     "id": "evt_0037",

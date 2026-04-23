@@ -195,7 +195,7 @@ def test_llm_offline_score_relevance_keyword_match() -> None:
     events = [
         SourceEvent(
             id="e1", source_id="s", fixture_timestamp=datetime(2026, 4, 1, tzinfo=UTC),
-            kind="post", title="Letta memory blocks", url=HttpUrl("https://example.test/1"),
+            kind="post", title="Agent memory blocks", url=HttpUrl("https://example.test/1"),
             body_md="agent memory architecture",
         ),
         SourceEvent(
