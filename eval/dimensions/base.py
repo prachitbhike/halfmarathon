@@ -36,6 +36,11 @@ class DimensionResult:
     metrics: dict[str, Any] = field(default_factory=dict)
     elapsed_s: float = 0.0
     error: str | None = None  # populated when status == ERROR
+    # Numerical accuracy in [0.0, 1.0]. None for SKIPPED/ERROR so those cells
+    # are excluded from the composite rather than counted as zeros.
+    accuracy: float | None = None
+    accuracy_components: dict[str, float] = field(default_factory=dict)
+    accuracy_explanation: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -47,6 +52,11 @@ class DimensionResult:
             "metrics": self.metrics,
             "elapsed_s": round(self.elapsed_s, 3),
             "error": self.error,
+            "accuracy": None if self.accuracy is None else round(self.accuracy, 4),
+            "accuracy_components": {
+                k: round(v, 4) for k, v in self.accuracy_components.items()
+            },
+            "accuracy_explanation": self.accuracy_explanation,
         }
 
 

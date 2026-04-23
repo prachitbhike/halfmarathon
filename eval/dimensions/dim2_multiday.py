@@ -28,6 +28,7 @@ from eval.dimensions.base import (
     write_approval_for,
 )
 from eval.impls import ImplSpec
+from eval.scoring import jaccard, mean, ratio_match
 from task.clock import DEFAULT_FIXTURE_START
 from task.types import UserProfile
 
@@ -103,48 +104,55 @@ async def run(
     elapsed = time.perf_counter() - t0
     pub_multi = published_week_ids(multi_dir)
     pub_fresh = published_week_ids(fresh_dir)
+    kb_multi = multi.get("kb_size") or 0
+    kb_fresh = fresh.get("kb_size") or 0
+
+    week_recovery = jaccard(pub_multi, expected)
+    kb_match = ratio_match(kb_multi, kb_fresh)
+    accuracy = mean([week_recovery, kb_match])
+    components = {"week_recovery": week_recovery, "kb_match": kb_match}
+    explanation = (
+        "mean(jaccard(multi_weeks, expected), ratio_match(kb_multi, kb_fresh))"
+    )
+
     metrics = {
         "expected": expected,
         "multi_published": pub_multi,
         "fresh_published": pub_fresh,
+        "kb_multi": kb_multi,
+        "kb_fresh": kb_fresh,
         "multi_summary": multi,
         "fresh_summary": fresh,
         "stops": [s.isoformat() for s in stops],
     }
 
+    def _result(status: DimensionStatus, notes: str) -> DimensionResult:
+        return DimensionResult(
+            impl_id=spec.id, dimension_id=DIM_ID, dimension_name=DIM_NAME,
+            status=status, notes=notes, metrics=metrics, elapsed_s=elapsed,
+            accuracy=accuracy, accuracy_components=components,
+            accuracy_explanation=explanation,
+        )
+
     if set(pub_multi) != set(expected):
-        return DimensionResult(
-            impl_id=spec.id, dimension_id=DIM_ID, dimension_name=DIM_NAME,
-            status=DimensionStatus.FAIL,
-            notes=(
-                f"After {len(stops)} restarts the impl published {pub_multi}, "
-                f"expected {expected}."
-            ),
-            metrics=metrics, elapsed_s=elapsed,
+        return _result(
+            DimensionStatus.FAIL,
+            f"After {len(stops)} restarts the impl published {pub_multi}, "
+            f"expected {expected}.",
         )
 
-    kb_multi = multi.get("kb_size") or 0
-    kb_fresh = fresh.get("kb_size") or 0
     if kb_multi != kb_fresh:
-        return DimensionResult(
-            impl_id=spec.id, dimension_id=DIM_ID, dimension_name=DIM_NAME,
-            status=DimensionStatus.PARTIAL,
-            notes=(
-                f"All {len(expected)} digests published after {len(stops)} "
-                f"restarts, but KB sizes differ (multi={kb_multi}, "
-                f"fresh={kb_fresh})."
-            ),
-            metrics=metrics, elapsed_s=elapsed,
+        return _result(
+            DimensionStatus.PARTIAL,
+            f"All {len(expected)} digests published after {len(stops)} "
+            f"restarts, but KB sizes differ (multi={kb_multi}, "
+            f"fresh={kb_fresh}).",
         )
 
-    return DimensionResult(
-        impl_id=spec.id, dimension_id=DIM_ID, dimension_name=DIM_NAME,
-        status=DimensionStatus.PASS,
-        notes=(
-            f"Survived {len(stops)} restarts across the {len(expected)}-week "
-            f"fixture; final state byte-equivalent to a single-pass run."
-        ),
-        metrics=metrics, elapsed_s=elapsed,
+    return _result(
+        DimensionStatus.PASS,
+        f"Survived {len(stops)} restarts across the {len(expected)}-week "
+        f"fixture; final state byte-equivalent to a single-pass run.",
     )
 
 

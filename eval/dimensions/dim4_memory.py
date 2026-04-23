@@ -130,6 +130,19 @@ async def run(
     )
     found_in_digest = any(probe_url in body for body in digests)
 
+    # Graded surface: digest > KB-only > missing. KB score is only meaningful
+    # when the impl exposes its KB on disk (letta's in-memory store is not).
+    surface_score = (
+        1.0 if found_in_digest
+        else 0.5 if found_in_kb is True
+        else 0.0
+    )
+    accuracy = surface_score
+    components = {"surface_score": surface_score}
+    explanation = (
+        "1.0 if probe in published digest, 0.5 if in KB only, 0.0 if neither"
+    )
+
     metrics: dict[str, Any] = {
         "probe_event_id": probe_id,
         "probe_url": probe_url,
@@ -139,39 +152,35 @@ async def run(
         "summary": result,
     }
 
-    if found_in_digest:
+    def _result(status: DimensionStatus, notes: str) -> DimensionResult:
         return DimensionResult(
             impl_id=spec.id, dimension_id=DIM_ID, dimension_name=DIM_NAME,
-            status=DimensionStatus.PASS,
-            notes=(
-                f"Probe event {probe_id} was filed and surfaced in a "
-                f"published digest (URL match). The impl correctly captured "
-                f"the planted fact."
-            ),
-            metrics=metrics, elapsed_s=elapsed,
+            status=status, notes=notes, metrics=metrics, elapsed_s=elapsed,
+            accuracy=accuracy, accuracy_components=components,
+            accuracy_explanation=explanation,
+        )
+
+    if found_in_digest:
+        return _result(
+            DimensionStatus.PASS,
+            f"Probe event {probe_id} was filed and surfaced in a "
+            f"published digest (URL match). The impl correctly captured "
+            f"the planted fact.",
         )
 
     if found_in_kb is True:
-        return DimensionResult(
-            impl_id=spec.id, dimension_id=DIM_ID, dimension_name=DIM_NAME,
-            status=DimensionStatus.PARTIAL,
-            notes=(
-                f"Probe event filed in KB but did not make it into any "
-                f"published digest. Probably outranked by other items "
-                f"(max_items_per_digest={profile.max_items_per_digest})."
-            ),
-            metrics=metrics, elapsed_s=elapsed,
+        return _result(
+            DimensionStatus.PARTIAL,
+            f"Probe event filed in KB but did not make it into any "
+            f"published digest. Probably outranked by other items "
+            f"(max_items_per_digest={profile.max_items_per_digest}).",
         )
 
-    return DimensionResult(
-        impl_id=spec.id, dimension_id=DIM_ID, dimension_name=DIM_NAME,
-        status=DimensionStatus.FAIL,
-        notes=(
-            f"Probe event was injected via fixture override but did not "
-            f"appear in KB (kb_observable={kb is not None}) or any digest. "
-            f"The impl is dropping events it ought to keep."
-        ),
-        metrics=metrics, elapsed_s=elapsed,
+    return _result(
+        DimensionStatus.FAIL,
+        f"Probe event was injected via fixture override but did not "
+        f"appear in KB (kb_observable={kb is not None}) or any digest. "
+        f"The impl is dropping events it ought to keep.",
     )
 
 
