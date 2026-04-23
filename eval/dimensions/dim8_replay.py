@@ -92,7 +92,11 @@ async def run(
     run_b = base / "run-b"
 
     fixture_start = DEFAULT_FIXTURE_START
-    fixture_until = DEFAULT_FIXTURE_START + timedelta(days=15)
+    # Window length is overridable via HALFMARATHON_DIM_DAYS (default 15) so
+    # slow real-LLM impls (claude_sdk) can run a shorter window.
+    fixture_until = DEFAULT_FIXTURE_START + timedelta(
+        days=int(os.environ.get("HALFMARATHON_DIM_DAYS", "15"))
+    )
     speed = float(os.environ.get("HALFMARATHON_DIM_SPEED", "86400"))
     expected = expected_week_ids(fixture_start, fixture_until)
 
